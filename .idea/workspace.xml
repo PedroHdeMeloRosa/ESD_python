@@ -4,7 +4,21 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="8f0dbb33-bf05-4a02-97f0-25bd1c482eda" name="Changes" comment="Fiz uma renca de mudanças" />
+    <list default="true" id="8f0dbb33-bf05-4a02-97f0-25bd1c482eda" name="Changes" comment="Fiz uma renca de mudanças">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Estruturas/avl_tree.py" beforeDir="false" afterPath="$PROJECT_DIR$/Estruturas/avl_tree.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Estruturas/bloom_filter.py" beforeDir="false" afterPath="$PROJECT_DIR$/Estruturas/bloom_filter.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Estruturas/hash_table.py" beforeDir="false" afterPath="$PROJECT_DIR$/Estruturas/hash_table.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Estruturas/linked_list.py" beforeDir="false" afterPath="$PROJECT_DIR$/Estruturas/linked_list.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Estruturas/radix_tree.py" beforeDir="false" afterPath="$PROJECT_DIR$/Estruturas/radix_tree.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/benchmark_estruturas.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/main.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modelos/MetricasDesempenho.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/modelos/data_handler.py" beforeDir="false" afterPath="$PROJECT_DIR$/modelos/data_handler.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modelos/moto.py" beforeDir="false" afterPath="$PROJECT_DIR$/modelos/moto.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ui/helpers.py" beforeDir="false" afterPath="$PROJECT_DIR$/ui/helpers.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ui/menu.py" beforeDir="false" afterPath="$PROJECT_DIR$/ui/menu.py" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
