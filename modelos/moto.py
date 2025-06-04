@@ -159,7 +159,7 @@ class MotoEstatisticas:
                     boxprops=dict(facecolor='lightgreen', color='black'),
                     medianprops=dict(color='red'))
         ax2.set_title('Comparativo Preços vs Revendas', fontsize=12)
-        ax2.set_ylabel('Valores (R$)', fontsize=10)
+        ax2.set_ylabel('Valores (₹)', fontsize=10)
 
         # 3. Distribuição por Ano
         contador_anos = Counter(anos)
@@ -172,8 +172,8 @@ class MotoEstatisticas:
         # 4. Dispersão Preço vs Revenda (colorido por ano)
         scatter = ax4.scatter(precos, revendas, c=anos, cmap='viridis', alpha=0.6, edgecolors='w', linewidth=0.5)
         ax4.set_title('Relação Preço Original vs Valor de Revenda', fontsize=14)
-        ax4.set_xlabel('Preço Original (R$)', fontsize=12)
-        ax4.set_ylabel('Valor de Revenda (R$)', fontsize=12)
+        ax4.set_xlabel('Preço Original (₹)', fontsize=12)
+        ax4.set_ylabel('Valor de Revenda (₹)', fontsize=12)
         legend1 = ax4.legend(*scatter.legend_elements(num=min(5, len(anos_unicos))), title="Anos", loc="upper right",
                              bbox_to_anchor=(1.15, 1))
         ax4.add_artist(legend1)
@@ -279,7 +279,7 @@ class MotoEstatisticas:
                      label=f'Tendência Preços\ny={coef_preco[0]:.2f}x + {coef_preco[1]:.0f}')
             plt.title('Preços Médios', fontsize=14)
             plt.xlabel('Ano', fontsize=12)
-            plt.ylabel('Preço Médio (R$)', fontsize=12)
+            plt.ylabel('Preço Médio (₹)', fontsize=12)
             plt.legend()
             plt.grid(True, linestyle=':', alpha=0.7)
 
@@ -290,7 +290,7 @@ class MotoEstatisticas:
                      label=f'Tendência Revendas\ny={coef_revenda[0]:.2f}x + {coef_revenda[1]:.0f}')
             plt.title('Valores Médios de Revenda', fontsize=14)
             plt.xlabel('Ano', fontsize=12)
-            plt.ylabel('Revenda Média (R$)', fontsize=12)
+            plt.ylabel('Revenda Média (₹)', fontsize=12)
             plt.legend()
             plt.grid(True, linestyle=':', alpha=0.7)
 

@@ -49,7 +49,7 @@ class StructureAnalyzer:
             'BloomFilter': lambda: BloomFilter(
                 num_itens_esperados=len(motorcycles_dataset) if motorcycles_dataset else 1000),
             'RadixTree': RadixTree,
-            'BTree': lambda: BTreeV2(t=self.t_btree)  # Usando BTreeV2
+            'BTree': lambda: BTreeV2(t=self.t_btree)
         }
         self.initialized_structures: Dict[str, Any] = {}
         self.performance_results: Dict[str, Dict[str, Any]] = {}
@@ -211,8 +211,7 @@ class StructureAnalyzer:
         except:
             plt.style.use('default')
 
-        # Gráfico 1: Comparação de Tempos Médios das Operações
-        fig1 = None  # Inicializa para o bloco finally
+        fig1 = None
         try:
             fig1, ax1 = plt.subplots(figsize=(15, 8))
             operations = ['initialization_avg_insert', 'search_avg', 'new_insertion_avg', 'removal_avg']
@@ -251,15 +250,14 @@ class StructureAnalyzer:
             plt.tight_layout(rect=[0, 0, 0.85, 1])
 
             print("\nExibindo gráfico de comparação de tempos... (Feche a janela para continuar)")
-            plt.show()  # BLOQUEANTE
+            plt.show()
         except Exception as e:
             print(f"Erro ao gerar/exibir gráfico de comparação de tempos: {e}")
         finally:
             if fig1:
                 plt.close(fig1)
 
-        # Gráfico 2: Uso de Memória de Pico na Inicialização
-        fig2 = None  # Inicializa para o bloco finally
+        fig2 = None
         try:
             fig2, ax2 = plt.subplots(figsize=(12, 7))
             memories = [self.performance_results[n].get('initialization', {}).get('peak_memory_init_kb', 0) for n in
@@ -282,7 +280,7 @@ class StructureAnalyzer:
             plt.tight_layout()
 
             print("\nExibindo gráfico de comparação de memória... (Feche a janela para continuar)")
-            plt.show()  # BLOQUEANTE
+            plt.show()
         except Exception as e:
             print(f"Erro ao gerar/exibir gráfico de comparação de memória: {e}")
         finally:
@@ -299,8 +297,7 @@ class StructureAnalyzer:
         except:
             plt.style.use('default')
 
-        # Gráfico 1: Evolução do Tempo de Inserção
-        fig_time = None  # Inicializa para o bloco finally
+        fig_time = None
         try:
             fig_time, ax_time = plt.subplots(figsize=(12, 7))
             ax_time.set_title('Evolução do Tempo de Inserção Individual Durante a Inicialização', fontsize=15)
@@ -320,15 +317,14 @@ class StructureAnalyzer:
             plt.tight_layout()
 
             print("\nExibindo gráfico de evolução do tempo de inserção... (Feche a janela para continuar)")
-            plt.show()  # BLOQUEANTE
+            plt.show()
         except Exception as e:
             print(f"Erro ao gerar/exibir gráfico de evolução de tempo: {e}")
         finally:
             if fig_time:
                 plt.close(fig_time)
 
-        # Gráfico 2: Evolução do Pico de Memória por Inserção
-        fig_mem = None  # Inicializa para o bloco finally
+        fig_mem = None
         try:
             fig_mem, ax_mem = plt.subplots(figsize=(12, 7))
             ax_mem.set_title('Evolução do Pico de Memória por Inserção Durante a Inicialização', fontsize=15)
@@ -346,9 +342,8 @@ class StructureAnalyzer:
             ax_mem.legend(loc='upper right')
             ax_mem.grid(True, linestyle=':', alpha=0.7)
             plt.tight_layout()
-
             print("\nExibindo gráfico de evolução da memória de inserção... (Feche a janela para continuar)")
-            plt.show()  # BLOQUEANTE
+            plt.show()
         except Exception as e:
             print(f"Erro ao gerar/exibir gráfico de evolução de memória: {e}")
         finally:
@@ -403,10 +398,10 @@ def main_menu_loop(analyzer: StructureAnalyzer, full_dataset: List[Moto]):
             if not analyzer.initialized_structures.get(struct_key):
                 print(f"\nAVISO: A estrutura {struct_name_display} não está inicializada.")
                 print("  Execute a 'Suíte Completa de Análise' (opção 7) primeiro, ou")
-                default_sample = analyzer.last_init_sample_size if analyzer.last_init_sample_size is not None else 1000
+                default_sample_menu_ind = analyzer.last_init_sample_size if analyzer.last_init_sample_size is not None else 1000
                 if input(
-                        f"  deseja inicializar TODAS as estruturas agora com uma amostra ({default_sample})? (s/n): ").lower() == 's':
-                    analyzer.initialize_all_structures(sample_size=default_sample, verbose=True)
+                        f"  deseja inicializar TODAS as estruturas agora com uma amostra ({default_sample_menu_ind})? (s/n): ").lower() == 's':
+                    analyzer.initialize_all_structures(sample_size=default_sample_menu_ind, verbose=True)
 
                 if not analyzer.initialized_structures.get(struct_key):
                     print(f"Estrutura {struct_name_display} ainda não inicializada. Voltando ao menu.")
@@ -418,16 +413,41 @@ def main_menu_loop(analyzer: StructureAnalyzer, full_dataset: List[Moto]):
 
         elif escolha_main == '7':
             try:
-                default_init_size = analyzer.last_init_sample_size if analyzer.last_init_sample_size is not None else 1000
-                init_s_str = input(f"Tamanho da amostra para inicialização (padrão {default_init_size}): ").strip()
-                init_sample = int(init_s_str) if init_s_str else default_init_size
+                prompt_default_init_size_display = analyzer.last_init_sample_size if analyzer.last_init_sample_size is not None else 1000
+                init_s_str = input(
+                    f"Tamanho da amostra para inicialização (Padrão exibido: {prompt_default_init_size_display}. Deixe VAZIO para usar o dataset COMPLETO): ").strip()
 
-                bench_ops_s = input("Número de operações para benchmarks (padrão 100): ").strip()
-                bench_ops = int(bench_ops_s) if bench_ops_s else 100
-                analyzer.run_full_analysis_suite(init_sample_size=init_sample, benchmark_ops_count=bench_ops)
+                init_sample_to_use: Optional[int]
+                if not init_s_str:
+                    init_sample_to_use = None
+                    print("INFO: Usando o dataset COMPLETO para inicialização.")
+                else:
+                    init_sample_to_use = int(init_s_str)
+                    if init_sample_to_use <= 0:
+                        print("AVISO: Tamanho da amostra deve ser positivo. Usando o dataset COMPLETO.")
+                        init_sample_to_use = None
+
+                default_bench_ops = 100
+                bench_ops_s = input(f"Número de operações para benchmarks (padrão {default_bench_ops}): ").strip()
+                bench_ops_to_use: int
+                if not bench_ops_s:
+                    bench_ops_to_use = default_bench_ops
+                else:
+                    bench_ops_to_use = int(bench_ops_s)
+                    if bench_ops_to_use < 0:
+                        print(f"AVISO: Número de operações de benchmark inválido. Usando padrão {default_bench_ops}.")
+                        bench_ops_to_use = default_bench_ops
+
+                analyzer.run_full_analysis_suite(init_sample_size=init_sample_to_use,
+                                                 benchmark_ops_count=bench_ops_to_use)
+
             except ValueError:
-                print("Entrada inválida. Usando padrões para análise.")
-                analyzer.run_full_analysis_suite()
+                print("ERRO: Entrada inválida para tamanho da amostra ou número de operações.")
+                print("Usando padrões para análise (Amostra: Dataset COMPLETO, Operações de Benchmark: 100).")
+                analyzer.run_full_analysis_suite(init_sample_size=None, benchmark_ops_count=100)
+            except Exception as e:
+                print(f"Ocorreu um erro inesperado ao configurar a análise: {e}")
+                print("Abortando a suíte de análise.")
 
         elif escolha_main == '8':
             if not analyzer.performance_results or not any(
@@ -484,10 +504,7 @@ def main():
     analyzer = StructureAnalyzer(motos_dataset)
 
     if not analyzer.initialized_structures:
-        print("\nNenhuma estrutura foi inicializada ainda.")
-        if input(
-                "Deseja realizar uma inicialização padrão de todas as estruturas com uma amostra (1000 motos) agora? (s/n): ").strip().lower() == 's':
-            analyzer.initialize_all_structures(sample_size=1000, verbose=True)
+        print("\nNenhuma estrutura foi inicializada ainda (isso acontece na Opção 7 ou ao acessar um menu individual).")
 
     main_menu_loop(analyzer, motos_dataset)
 
@@ -498,7 +515,6 @@ if __name__ == "__main__":
 
         matplotlib.use('TkAgg')
     except Exception as e:
-        # Permitir que o programa continue mesmo se o backend falhar, com um aviso.
         print(f"Aviso: Problema ao configurar backend 'TkAgg' do Matplotlib: {e}. "
               "Os gráficos podem não ser exibidos interativamente ou podem precisar de configuração manual do backend (ex: MPLBACKEND).")
     main()
