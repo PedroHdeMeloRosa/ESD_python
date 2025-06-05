@@ -4,21 +4,15 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="8f0dbb33-bf05-4a02-97f0-25bd1c482eda" name="Changes" comment="Adiçõa da Arvore B ao trabs.">
-      <change afterPath="$PROJECT_DIR$/simulacoes/__init__.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/simulacoes/restricao_algoritmica.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/simulacoes/restricao_dados.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/simulacoes/restricao_latencia.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/simulacoes/restricao_memoria.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/simulacoes/restricao_processamento.py" afterDir="false" />
+    <list default="true" id="8f0dbb33-bf05-4a02-97f0-25bd1c482eda" name="Changes" comment="Agora, foi adicionado as condições restritivas">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Estruturas/avl_tree.py" beforeDir="false" afterPath="$PROJECT_DIR$/Estruturas/avl_tree.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Estruturas/b_tree_v2.py" beforeDir="false" afterPath="$PROJECT_DIR$/Estruturas/b_tree_v2.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Estruturas/hash_table.py" beforeDir="false" afterPath="$PROJECT_DIR$/Estruturas/hash_table.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Estruturas/linked_list.py" beforeDir="false" afterPath="$PROJECT_DIR$/Estruturas/linked_list.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Estruturas/radix_tree.py" beforeDir="false" afterPath="$PROJECT_DIR$/Estruturas/radix_tree.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/main.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modelos/moto.py" beforeDir="false" afterPath="$PROJECT_DIR$/modelos/moto.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/ui/menu.py" beforeDir="false" afterPath="$PROJECT_DIR$/ui/menu.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/simulacoes/restricao_algoritmica.py" beforeDir="false" afterPath="$PROJECT_DIR$/simulacoes/restricao_algoritmica.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/simulacoes/restricao_latencia.py" beforeDir="false" afterPath="$PROJECT_DIR$/simulacoes/restricao_latencia.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/simulacoes/restricao_memoria.py" beforeDir="false" afterPath="$PROJECT_DIR$/simulacoes/restricao_memoria.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -165,7 +159,15 @@
       <option name="project" value="LOCAL" />
       <updated>1749075822446</updated>
     </task>
-    <option name="localTasksCounter" value="7" />
+    <task id="LOCAL-00007" summary="Agora, foi adicionado as condições restritivas">
+      <option name="closed" value="true" />
+      <created>1749162882143</created>
+      <option name="number" value="00007" />
+      <option name="presentableId" value="LOCAL-00007" />
+      <option name="project" value="LOCAL" />
+      <updated>1749162882143</updated>
+    </task>
+    <option name="localTasksCounter" value="8" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
@@ -183,6 +185,7 @@
     <MESSAGE value="Fiz uma renca de mudanças" />
     <MESSAGE value="Codigo completamente restruturado, mas ficou mais funcional" />
     <MESSAGE value="Adiçõa da Arvore B ao trabs." />
-    <option name="LAST_COMMIT_MESSAGE" value="Adiçõa da Arvore B ao trabs." />
+    <MESSAGE value="Agora, foi adicionado as condições restritivas" />
+    <option name="LAST_COMMIT_MESSAGE" value="Agora, foi adicionado as condições restritivas" />
   </component>
 </project>
