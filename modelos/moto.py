@@ -130,7 +130,7 @@ class MotoEstatisticas:
         plt.rcParams.update({'figure.autolayout': True, 'figure.dpi': 90})
 
         # --- PRIMEIRA FIGURA (gráficos consolidados) ---
-        fig1 = plt.figure(figsize=(18, 15))
+        fig1 = plt.figure(figsize=(15, 12))
         fig1.suptitle("Análise Estatística Geral de Motocicletas", fontsize=16, y=0.98)
 
         # Grid 3x3

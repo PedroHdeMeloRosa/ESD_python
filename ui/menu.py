@@ -1,6 +1,6 @@
 # ui/menu.py
 import os
-from typing import Any, List, Optional
+from typing import Any, List,Optional,Dict
 from modelos.moto import Moto, MotoEstatisticas
 from ui.helpers import validar_float, validar_int, obter_dados_moto
 
@@ -230,3 +230,88 @@ def submenu_filtrar_ordenar(dataset: List[Moto]):
             print(f"{m.marca:<15}{m.nome:<25}{m.preco:<12.2f}{m.revenda:<15.2f}{m.ano:<6}{deprec_percent:<10.1f}")
         print(f"\nTotal de motos filtradas/ordenadas: {len(dados_para_exibir)} (exibindo até 50)")
         print("=" * 80)
+
+
+def submenu_testes_restricao(analyzer: Any, configuracoes_restricoes: Dict[str, Dict[str, Any]]):
+    """
+    Exibe um submenu para o usuário escolher e executar testes com condições restritivas.
+    :param analyzer: A instância do StructureAnalyzer.
+    :param configuracoes_restricoes: Dicionário com as configurações dos testes de restrição.
+    """
+    while True:
+        print("\n" + "=" * 20 + " TESTES COM CONDIÇÕES RESTRITIVAS " + "=" * 20)
+        if not configuracoes_restricoes:
+            print("Nenhuma configuração de teste de restrição definida.")
+            return
+
+        categorias = {}  # Dicionário para agrupar testes por categoria
+        for id_teste, config in configuracoes_restricoes.items():
+            cat = config.get("categoria", "Outros")
+            if cat not in categorias:
+                categorias[cat] = []
+            categorias[cat].append((id_teste, config.get("nome", id_teste)))
+
+        idx_global = 1
+        opcoes_menu = {}  # Mapeia número da opção para id_teste
+
+        for cat_nome, testes_na_categoria in sorted(categorias.items()):
+            print(f"\n--- {cat_nome.upper()} ---")
+            for id_teste, nome_teste in sorted(testes_na_categoria, key=lambda x: x[1]):
+                print(f"{idx_global}. {nome_teste}")
+                opcoes_menu[str(idx_global)] = id_teste
+                idx_global += 1
+
+        print("0. Voltar ao Menu Principal")
+        escolha_teste_num = input("Escolha um teste de restrição para executar: ").strip()
+
+        if escolha_teste_num == '0':
+            break
+
+        id_teste_escolhido = opcoes_menu.get(escolha_teste_num)
+        if not id_teste_escolhido:
+            print("Opção inválida.")
+            continue
+
+        config_escolhida = configuracoes_restricoes[id_teste_escolhido]
+        print(f"\nExecutando teste: {config_escolhida['nome']}...")
+
+        try:
+            # Configurar parâmetros para a suíte de análise sob restrição
+            default_init_size_restr = analyzer.last_init_sample_size if analyzer.last_init_sample_size is not None else len(
+                analyzer.motorcycles_full_dataset_original) // 2 or 1000
+            init_s_str_restr = input(
+                f"Tamanho da amostra para este teste (Padrão {default_init_size_restr}. VAZIO para padrão): ").strip()
+            init_sample_restr = int(init_s_str_restr) if init_s_str_restr else default_init_size_restr
+            if init_sample_restr <= 0: init_sample_restr = default_init_size_restr
+
+            bench_ops_s_restr = input(f"Número de operações de benchmark para este teste (padrão 100): ").strip()
+            bench_ops_restr = int(bench_ops_s_restr) if bench_ops_s_restr else 100
+            if bench_ops_restr < 0: bench_ops_restr = 100
+
+            # Perguntar se quer rodar escalabilidade também sob esta restrição
+            run_scal_restr_input = input(
+                "Rodar também testes de escalabilidade sob esta restrição? (s/n, padrão n): ").strip().lower()
+            run_scal_restr = True if run_scal_restr_input == 's' else False
+            scal_sizes_restr = None
+            if run_scal_restr:
+                sizes_str_restr = input(
+                    "Tamanhos N para escalabilidade (ex: 100,500,1000). VAZIO para padrão: ").strip()
+                if sizes_str_restr:
+                    scal_sizes_restr = [int(s.strip()) for s in sizes_str_restr.split(',')]
+                    if any(s <= 0 for s in scal_sizes_restr):
+                        print("AVISO: Tamanhos N de escalabilidade devem ser positivos. Usando padrão.")
+                        scal_sizes_restr = None
+
+            analyzer.run_suite_with_restriction(
+                restriction_config=config_escolhida,
+                init_sample_size=init_sample_restr,
+                benchmark_ops_count=bench_ops_restr,
+                run_scalability_flag=run_scal_restr,
+                scalability_sizes=scal_sizes_restr
+            )
+        except ValueError:
+            print("ERRO: Entrada inválida para parâmetros do teste.")
+        except Exception as e:
+            print(f"ERRO ao executar teste com restrição '{config_escolhida['nome']}': {e}")
+
+        input("\nPressione Enter para continuar...")
