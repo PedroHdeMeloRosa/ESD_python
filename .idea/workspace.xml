@@ -6,7 +6,9 @@
   <component name="ChangeListManager">
     <list default="true" id="8f0dbb33-bf05-4a02-97f0-25bd1c482eda" name="Changes" comment="Agora, foi adicionado as condições restritivas">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/main.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/modelos/moto.py" beforeDir="false" afterPath="$PROJECT_DIR$/modelos/moto.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/simulacoes/restricao_processamento.py" beforeDir="false" afterPath="$PROJECT_DIR$/simulacoes/restricao_processamento.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
