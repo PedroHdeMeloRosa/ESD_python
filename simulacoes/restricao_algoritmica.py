@@ -28,8 +28,17 @@ def configurar_limite_passos_busca_arvore(max_passos: Optional[int]) -> None:
 def obter_limite_passos_busca_arvore() -> Optional[int]:
     return _active_tree_search_step_limit
 
+
 def resetar_restricoes_algoritmicas() -> None:
     global _active_hash_load_factor_override, _active_tree_search_step_limit
+    # Guarda os valores antigos para ver se algo mudou
+    old_factor = _active_hash_load_factor_override
+    old_limit = _active_tree_search_step_limit
+
     _active_hash_load_factor_override = None
     _active_tree_search_step_limit = None
-    # print("INFO (Restrição Algorítmica): Todas as restrições algorítmicas resetadas.")
+
+    # Imprime apenas se houve uma mudança real (estava ativo e foi desativado)
+    if old_factor is not None or old_limit is not None:
+        print(
+            "INFO (Restrição Algorítmica): Restrições algorítmicas (fator de carga HT, limite busca árvore) resetadas para o padrão.")

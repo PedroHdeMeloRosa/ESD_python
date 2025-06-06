@@ -8,11 +8,16 @@
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Estruturas/avl_tree.py" beforeDir="false" afterPath="$PROJECT_DIR$/Estruturas/avl_tree.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Estruturas/b_tree_v2.py" beforeDir="false" afterPath="$PROJECT_DIR$/Estruturas/b_tree_v2.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Estruturas/hash_table.py" beforeDir="false" afterPath="$PROJECT_DIR$/Estruturas/hash_table.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Estruturas/linked_list.py" beforeDir="false" afterPath="$PROJECT_DIR$/Estruturas/linked_list.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Estruturas/radix_tree.py" beforeDir="false" afterPath="$PROJECT_DIR$/Estruturas/radix_tree.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/main.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modelos/data_handler.py" beforeDir="false" afterPath="$PROJECT_DIR$/modelos/data_handler.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modelos/moto.py" beforeDir="false" afterPath="$PROJECT_DIR$/modelos/moto.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/simulacoes/restricao_algoritmica.py" beforeDir="false" afterPath="$PROJECT_DIR$/simulacoes/restricao_algoritmica.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/simulacoes/restricao_latencia.py" beforeDir="false" afterPath="$PROJECT_DIR$/simulacoes/restricao_latencia.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/simulacoes/restricao_memoria.py" beforeDir="false" afterPath="$PROJECT_DIR$/simulacoes/restricao_memoria.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/simulacoes/restricao_processamento.py" beforeDir="false" afterPath="$PROJECT_DIR$/simulacoes/restricao_processamento.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ui/helpers.py" beforeDir="false" afterPath="$PROJECT_DIR$/ui/helpers.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ui/menu.py" beforeDir="false" afterPath="$PROJECT_DIR$/ui/menu.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -167,7 +172,15 @@
       <option name="project" value="LOCAL" />
       <updated>1749162882143</updated>
     </task>
-    <option name="localTasksCounter" value="8" />
+    <task id="LOCAL-00008" summary="Agora, foi adicionado as condições restritivas">
+      <option name="closed" value="true" />
+      <created>1749164889577</created>
+      <option name="number" value="00008" />
+      <option name="presentableId" value="LOCAL-00008" />
+      <option name="project" value="LOCAL" />
+      <updated>1749164889577</updated>
+    </task>
+    <option name="localTasksCounter" value="9" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">

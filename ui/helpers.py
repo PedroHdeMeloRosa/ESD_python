@@ -9,24 +9,21 @@ def validar_entrada_generica(prompt: str, tipo_esperado: type, erro_msg: str, co
                              msg_condicao_extra=""):
     """
     Função genérica para validar entrada do usuário.
-    :param prompt: Mensagem a ser exibida ao usuário.
-    :param tipo_esperado: O tipo de dado esperado (ex: float, int).
-    :param erro_msg: Mensagem de erro para tipo inválido.
-    :param condicao_extra: Uma função lambda opcional para validação adicional.
-    :param msg_condicao_extra: Mensagem de erro se a condição extra não for satisfeita.
-    :return: O valor validado.
+    Pede input repetidamente até que um valor válido do tipo esperado
+    seja fornecido e opcionalmente atenda a uma condição extra.
     """
     while True:
         try:
             valor_str = input(prompt).strip()
-            if tipo_esperado == float and valor_str == "" and "(-1 para qualquer)" in prompt:  # Permitir vazio para -1
+            # Permite -1 para campos numéricos em busca se prompt indicar
+            if tipo_esperado == float and valor_str == "-1" and "(-1 para qualquer)" in prompt:
                 return -1.0
-            if tipo_esperado == int and valor_str == "" and "(-1 para qualquer)" in prompt:
+            if tipo_esperado == int and valor_str == "-1" and "(-1 para qualquer)" in prompt:
                 return -1
 
             valor = tipo_esperado(valor_str)
             if condicao_extra and not condicao_extra(valor):
-                print(msg_condicao_extra or "Erro: Valor não atende aos critérios adicionais.")
+                print(msg_condicao_extra or "Erro: Valor inválido! Tente novamente.")
                 continue
             return valor
         except ValueError:
@@ -35,7 +32,10 @@ def validar_entrada_generica(prompt: str, tipo_esperado: type, erro_msg: str, co
 
 def validar_float(prompt: str, permitir_negativo_um: bool = False, min_val: Optional[float] = None,
                   max_val: Optional[float] = None) -> float:
-    """Valida entrada float do usuário, opcionalmente permitindo -1."""
+    """
+    Valida entrada float do usuário.
+    Pode permitir -1 (para qualquer valor em buscas) e aplicar limites mínimo/máximo.
+    """
     while True:
         try:
             entrada_str = input(prompt).strip()
@@ -44,10 +44,10 @@ def validar_float(prompt: str, permitir_negativo_um: bool = False, min_val: Opti
 
             valor = float(entrada_str)
 
-            if min_val is not None and valor < min_val and (not permitir_negativo_um or valor != -1):
+            if min_val is not None and valor < min_val and not (permitir_negativo_um and valor == -1):
                 print(f"Erro: O valor deve ser maior ou igual a {min_val}.")
                 continue
-            if max_val is not None and valor > max_val and (not permitir_negativo_um or valor != -1):
+            if max_val is not None and valor > max_val and not (permitir_negativo_um and valor == -1):
                 print(f"Erro: O valor deve ser menor ou igual a {max_val}.")
                 continue
             return valor
@@ -57,7 +57,10 @@ def validar_float(prompt: str, permitir_negativo_um: bool = False, min_val: Opti
 
 def validar_int(prompt: str, permitir_negativo_um: bool = False, min_val: Optional[int] = None,
                 max_val: Optional[int] = None) -> int:
-    """Valida entrada int do usuário, opcionalmente permitindo -1."""
+    """
+    Valida entrada int do usuário.
+    Pode permitir -1 (para qualquer valor em buscas) e aplicar limites mínimo/máximo.
+    """
     while True:
         try:
             entrada_str = input(prompt).strip()
@@ -66,10 +69,10 @@ def validar_int(prompt: str, permitir_negativo_um: bool = False, min_val: Option
 
             valor = int(entrada_str)
 
-            if min_val is not None and valor < min_val and (not permitir_negativo_um or valor != -1):
+            if min_val is not None and valor < min_val and not (permitir_negativo_um and valor == -1):
                 print(f"Erro: O valor deve ser maior ou igual a {min_val}.")
                 continue
-            if max_val is not None and valor > max_val and (not permitir_negativo_um or valor != -1):
+            if max_val is not None and valor > max_val and not (permitir_negativo_um and valor == -1):
                 print(f"Erro: O valor deve ser menor ou igual a {max_val}.")
                 continue
             return valor
@@ -79,8 +82,8 @@ def validar_int(prompt: str, permitir_negativo_um: bool = False, min_val: Option
 
 def obter_dados_moto(para_busca: bool = False) -> Moto:
     """
-    Coleta os dados de uma moto do usuário.
-    :param para_busca: Se True, permite que campos numéricos sejam -1 (qualquer valor).
+    Coleta os dados de uma moto do usuário via entrada de console.
+    :param para_busca: Se True, a lógica permite que campos numéricos recebam -1.
     :return: Um objeto Moto com os dados inseridos.
     """
     print("\n--- Inserir Dados da Moto ---")
@@ -95,13 +98,15 @@ def obter_dados_moto(para_busca: bool = False) -> Moto:
         nome = input("Modelo: ").strip()
 
     if not para_busca:
-        preco = validar_float("Preço (R$): ", min_val=0)
-        revenda = validar_float("Valor de Revenda (R$): ", min_val=0)
+        # Usando min_val e max_val para validação mais robusta
+        preco = validar_float("Preço (R$): ", min_val=0.0)
+        revenda = validar_float("Valor de Revenda (R$): ", min_val=0.0)
         ano = validar_int("Ano de Fabricação: ", min_val=1900, max_val=datetime.date.today().year + 1)
     else:
         print("Para busca, digite -1 em campos numéricos para 'qualquer valor'.")
         preco = validar_float("Preço (R$) (-1 para qualquer): ", permitir_negativo_um=True)
         revenda = validar_float("Valor de Revenda (R$) (-1 para qualquer): ", permitir_negativo_um=True)
+        # Definindo um range seguro para anos na busca, mesmo com -1
         ano = validar_int("Ano de Fabricação (-1 para qualquer): ", permitir_negativo_um=True)
 
     # Criando a moto com todos os parâmetros obrigatórios

@@ -11,10 +11,16 @@ class RadixTree:
             self.dados: List[Moto] = []
             self.is_fim_de_chave: bool = False
 
-    def __init__(self, max_elements: Optional[int] = None):  # NOVO: max_elements
+    def __init__(self, max_elements: Optional[int] = None):
         self.raiz = self.Node()
-        self._count = 0  # Número de OBJETOS Moto distintos
-        self.max_elements: Optional[int] = max_elements  # NOVO ATRIBUTO
+        self._count = 0
+        self.max_elements: Optional[int] = max_elements
+        self._search_step_limit: Optional[int] = None  # NOVO para A1
+
+    def set_search_step_limit(self, limit: Optional[int]):  # NOVO MÉTODO para A1
+        self._search_step_limit = limit
+
+    # NOVO ATRIBUTO
 
     def inserir(self, data: Moto) -> bool:  # Modificado para retornar bool
         # A RadixTree pode ter múltiplos objetos Moto sob a mesma chave de string (nome da moto)
@@ -41,7 +47,7 @@ class RadixTree:
         #
         # VOU COLAR A LÓGICA DE INSERÇÃO DA SUA VERSÃO ANTERIOR DE RADIXTREE AQUI,
         # APENAS GARANTINDO QUE O RETORNO SEJA bool PARA indicar se foi novo.
-        len_prefixo_node = len(node.prefixo);
+        len_prefixo_node = len(node.prefixo)
         len_chave_restante = len(chave_restante)
         match_len = 0
         while (match_len < len_prefixo_node and match_len < len_chave_restante and
@@ -50,12 +56,12 @@ class RadixTree:
         if match_len < len_prefixo_node:  # Divide nó atual
             prefixo_filho_existente = node.prefixo[match_len:]
             novo_filho_existente = self.Node(prefixo_filho_existente)
-            novo_filho_existente.filhos = node.filhos;
+            novo_filho_existente.filhos = node.filhos
             novo_filho_existente.dados = list(node.dados)
             novo_filho_existente.is_fim_de_chave = node.is_fim_de_chave
             node.prefixo = node.prefixo[:match_len]
             node.filhos = {prefixo_filho_existente[0]: novo_filho_existente} if prefixo_filho_existente else {}
-            node.dados = [];
+            node.dados = []
             node.is_fim_de_chave = False
             if match_len == len_chave_restante:  # Chave termina no ponto de divisão
                 if data not in node.dados: node.dados.append(data); node.is_fim_de_chave = True; return True
@@ -63,7 +69,7 @@ class RadixTree:
             sufixo_nova_chave = chave_restante[match_len:]
             if not sufixo_nova_chave: return False  # Should not happen if len_chave_restante > match_len
             novo_filho_para_sufixo = self.Node(sufixo_nova_chave)
-            novo_filho_para_sufixo.dados.append(data);
+            novo_filho_para_sufixo.dados.append(data)
             novo_filho_para_sufixo.is_fim_de_chave = True
             node.filhos[sufixo_nova_chave[0]] = novo_filho_para_sufixo
             return True
@@ -77,31 +83,42 @@ class RadixTree:
                 return self._inserir_recursivo(node.filhos[sufixo_chave[0]], sufixo_chave, data)
             else:
                 novo_filho = self.Node(sufixo_chave)
-                novo_filho.dados.append(data);
+                novo_filho.dados.append(data)
                 novo_filho.is_fim_de_chave = True
                 node.filhos[sufixo_chave[0]] = novo_filho
                 return True
         return False  # Caso não coberto (ex: raiz com prefixo vazio e nenhuma correspondência inicial)
 
-    def buscar(self, alvo: Moto) -> Tuple[bool, int]:  # ... (sem mudanças na lógica de busca em si)
-        passos = [0];
-        encontrado = self._buscar_recursive_radix(self.raiz, alvo.nome.lower(), alvo, passos)
-        return encontrado, passos[0]
+    def buscar(self, alvo: Moto) -> Tuple[bool, int]:
+        passos_container = [0]  # Usar lista para passar por referência
+        encontrado = self._buscar_recursive_radix(self.raiz, alvo.nome.lower(), alvo, passos_container)
+        return encontrado, passos_container[0]
 
-    def _buscar_recursive_radix(self, node: Node, chave_restante: str, alvo_obj: Moto, passos: List[int]) -> bool:
-        # ... (lógica interna de _buscar_recursive_radix como na sua versão funcional)
-        passos[0] += 1
-        if not chave_restante.startswith(node.prefixo): return False
+    def _buscar_recursive_radix(self, node: Node, chave_restante: str, alvo_obj: Moto, passos_ref: List[int]) -> bool:
+        passos_ref[0] += 1
+
+        # NOVO: Verifica limite de passos para A1
+        if self._search_step_limit is not None and passos_ref[0] > self._search_step_limit:
+            return False  # Limite atingido
+
+        if not chave_restante.startswith(node.prefixo):
+            return False
+
         sufixo_chave = chave_restante[len(node.prefixo):]
-        if not sufixo_chave:  # Chegou ao fim da chave, no nó atual
-            return node.is_fim_de_chave and alvo_obj in node.dados  # Verifica objeto exato
-        if not node.filhos or sufixo_chave[0] not in node.filhos: return False
-        return self._buscar_recursive_radix(node.filhos[sufixo_chave[0]], sufixo_chave, alvo_obj, passos)
+
+        if not sufixo_chave:  # Chegou ao fim da chave (string), no nó atual
+            return node.is_fim_de_chave and alvo_obj in node.dados  # Verifica objeto Moto exato
+
+        # Se ainda há um sufixo, mas não há filhos ou o próximo char não leva a um filho
+        if not node.filhos or sufixo_chave[0] not in node.filhos:
+            return False
+
+        return self._buscar_recursive_radix(node.filhos[sufixo_chave[0]], sufixo_chave, alvo_obj, passos_ref)
 
     def exibir(self) -> None:  # ... (sem mudanças)
         print(f"\n{'=' * 70}\n=== RADIX TREE (Objetos Moto: {self._count}) ===")
         print(f"{'Marca':<15}{'Modelo':<20}{'Preço':<12}{'Revenda':<15}{'Ano':<6}\n{'-' * 70}")
-        self._displayed_count_radix = 0;
+        self._displayed_count_radix = 0
         self._exibir_recursive_radix(self.raiz)
         if self._count > self._displayed_count_radix: print(
             f"... e mais {self._count - self._displayed_count_radix} motos.")
@@ -124,6 +141,7 @@ class RadixTree:
         return self._count
 
     # Remoção em RadixTree é complexa, mantendo como placeholder
-    def remover(self, alvo: Moto) -> bool:
+    @staticmethod
+    def remover(alvo: Moto) -> bool:
         # print(f"AVISO: Remoção em RadixTree não implementada. {alvo.nome} não removido.")
         return False

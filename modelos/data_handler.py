@@ -1,8 +1,9 @@
 # modelos/data_handler.py
 import csv
 import os
-from modelos.moto import Moto  # Certifique-se que a classe Moto está definida em modelos/moto.py
+from modelos.moto import Moto
 from typing import List
+import datetime  # Para o ano máximo dinâmico
 
 
 class DataHandler:
@@ -13,134 +14,122 @@ class DataHandler:
         """
         Lê um dataset de motos de um arquivo CSV.
         Espera-se que o CSV tenha as colunas: 'brand', 'nome', 'preco', 'revenda', 'ano'.
+        Valida os dados e reporta o número de linhas ignoradas.
 
         :param caminho: Caminho para o arquivo CSV.
         :return: Lista de objetos Moto.
         """
         motos: List[Moto] = []
+        linhas_ignoradas_count = 0  # NOVO: Contador
+        linhas_lidas_total = 0  # NOVO: Contador
+
+        ano_atual = datetime.date.today().year
+        ano_maximo_permitido = ano_atual + 2  # Permite motos até 2 anos no futuro (ajustável)
 
         try:
             with open(caminho, 'r', encoding='utf-8') as arquivo:
                 leitor_csv = csv.DictReader(arquivo)
+                linhas_lidas_total = 0  # Reset para este arquivo
 
-                # Validação do cabeçalho
                 if not leitor_csv.fieldnames:
                     print(f"Erro: O arquivo CSV '{caminho}' parece estar vazio ou não tem cabeçalho.")
                     return motos
 
                 colunas_esperadas = ['brand', 'nome', 'preco', 'revenda', 'ano']
-                colunas_presentes_no_csv = [col.strip().lower() for col in
-                                            leitor_csv.fieldnames]  # Normaliza para minúsculas e remove espaços
-
-                # Ajusta os nomes das colunas esperadas para minúsculas para comparação case-insensitive
+                colunas_presentes_no_csv = [col.strip().lower() for col in leitor_csv.fieldnames]
                 colunas_esperadas_lower = [col.lower() for col in colunas_esperadas]
-
-                colunas_faltantes = [
-                    col_esperada for col_esperada in colunas_esperadas_lower
-                    if col_esperada not in colunas_presentes_no_csv
-                ]
+                colunas_faltantes = [c_esp for c_esp in colunas_esperadas_lower if
+                                     c_esp not in colunas_presentes_no_csv]
 
                 if colunas_faltantes:
-                    print(f"Erro: Colunas obrigatórias faltando no CSV '{caminho}': {', '.join(colunas_faltantes)}.")
-                    print(f"       Colunas esperadas (case-insensitive): {', '.join(colunas_esperadas_lower)}")
-                    print(
-                        f"       Colunas encontradas no arquivo (normalizadas): {', '.join(colunas_presentes_no_csv)}")
+                    print(f"Erro: Colunas faltando no CSV '{caminho}': {', '.join(colunas_faltantes)}.")
+                    print(f"       Esperadas: {', '.join(colunas_esperadas_lower)}")
+                    print(f"       Encontradas: {', '.join(colunas_presentes_no_csv)}")
                     return motos
 
-                # Mapeamento de nomes de coluna no CSV para os nomes esperados (caso haja variação de case)
-                # Isso torna a leitura mais robusta a pequenas variações no cabeçalho.
-                mapa_colunas = {col_csv_norm: col_csv_original for col_csv_original, col_csv_norm in
-                                zip(leitor_csv.fieldnames, colunas_presentes_no_csv)}
+                mapa_colunas = {norm: orig for orig, norm in zip(leitor_csv.fieldnames, colunas_presentes_no_csv)}
 
                 for i, linha in enumerate(leitor_csv):
-                    try:
-                        # Obtém os valores usando os nomes originais das colunas do CSV,
-                        # mas acessando pelo nome normalizado (minúsculo) que esperamos.
-                        marca_str = linha.get(mapa_colunas['brand'], "").strip()
-                        nome_str = linha.get(mapa_colunas['nome'], "").strip()
-                        preco_str = linha.get(mapa_colunas['preco'], "0").strip()
-                        revenda_str = linha.get(mapa_colunas['revenda'], "0").strip()
-                        ano_str = linha.get(mapa_colunas['ano'], "0").strip()
+                    linhas_lidas_total += 1
+                    num_linha_arquivo = i + 2  # +1 para 1-based index, +1 para pular cabeçalho
 
-                        # Validação básica dos dados lidos
+                    try:
+                        marca_str = linha.get(mapa_colunas.get('brand', 'brand_fallback'), "").strip()
+                        nome_str = linha.get(mapa_colunas.get('nome', 'nome_fallback'), "").strip()
+                        preco_str = linha.get(mapa_colunas.get('preco', 'preco_fallback'), "0").strip()
+                        revenda_str = linha.get(mapa_colunas.get('revenda', 'revenda_fallback'), "0").strip()
+                        ano_str = linha.get(mapa_colunas.get('ano', 'ano_fallback'), "0").strip()
+
                         if not marca_str:
-                            print(f"Aviso: Marca vazia na linha {i + 2}. Linha ignorada: {linha}")
+                            # print(f"Aviso [Linha {num_linha_arquivo}]: Marca vazia. Linha ignorada: {linha}") # Muito verboso
+                            linhas_ignoradas_count += 1;
                             continue
                         if not nome_str:
-                            print(f"Aviso: Nome vazio na linha {i + 2}. Linha ignorada: {linha}")
+                            # print(f"Aviso [Linha {num_linha_arquivo}]: Nome vazio. Linha ignorada: {linha}")
+                            linhas_ignoradas_count += 1;
                             continue
 
-                        # Conversão para os tipos corretos
                         try:
                             preco_val = float(preco_str) if preco_str else 0.0
-                            if preco_val < 0:
-                                print(
-                                    f"Aviso: Preço negativo ({preco_val}) na linha {i + 2}. Usando 0.0. Linha: {linha}")
-                                preco_val = 0.0
+                            if preco_val < 0: preco_val = 0.0
                         except ValueError:
-                            print(
-                                f"Aviso: Valor de preço inválido ('{preco_str}') na linha {i + 2}. Usando 0.0. Linha: {linha}")
+                            # print(f"Aviso [Linha {num_linha_arquivo}]: Preço inválido ('{preco_str}'). Usando 0.0.")
                             preco_val = 0.0
+                            # Se um preço inválido deve pular a linha:
+                            # linhas_ignoradas_count += 1; continue
 
                         try:
                             revenda_val = float(revenda_str) if revenda_str else 0.0
-                            if revenda_val < 0:
-                                print(
-                                    f"Aviso: Revenda negativa ({revenda_val}) na linha {i + 2}. Usando 0.0. Linha: {linha}")
-                                revenda_val = 0.0
+                            if revenda_val < 0: revenda_val = 0.0
                         except ValueError:
-                            print(
-                                f"Aviso: Valor de revenda inválido ('{revenda_str}') na linha {i + 2}. Usando 0.0. Linha: {linha}")
+                            # print(f"Aviso [Linha {num_linha_arquivo}]: Revenda inválida ('{revenda_str}'). Usando 0.0.")
                             revenda_val = 0.0
+                            # Se uma revenda inválida deve pular a linha:
+                            # linhas_ignoradas_count += 1; continue
 
                         try:
                             ano_val = int(ano_str) if ano_str else 0
-                            # Uma validação simples para o ano
-                            if not (1900 <= ano_val <= 2050):  # Ajuste o range conforme necessário
-                                print(
-                                    f"Aviso: Ano inválido ({ano_val}) na linha {i + 2}. Usando 0 ou ignorando. Linha: {linha}")
-                                # Decida se quer ignorar a linha ou usar um valor padrão para o ano.
-                                # Por ora, vamos ignorar a linha se o ano for muito discrepante.
-                                if ano_val == 0 and not ano_str:  # Se era vazio e virou 0
-                                    print(
-                                        f"Aviso: Ano vazio na linha {i + 2}, tratando como inválido. Linha ignorada. {linha}")
+                            if not (1900 <= ano_val <= ano_maximo_permitido):  # MODIFICADO: ano_maximo_permitido
+                                # print(f"Aviso [Linha {num_linha_arquivo}]: Ano inválido ({ano_val}). Linha ignorada: {linha}")
+                                linhas_ignoradas_count += 1;
                                 continue
                         except ValueError:
-                            print(
-                                f"Aviso: Valor de ano inválido ('{ano_str}') na linha {i + 2}. Linha ignorada. {linha}")
+                            # print(f"Aviso [Linha {num_linha_arquivo}]: Valor de ano inválido ('{ano_str}'). Linha ignorada.")
+                            linhas_ignoradas_count += 1;
                             continue
 
-                        moto = Moto(
-                            marca=marca_str,
-                            nome=nome_str,
-                            preco=preco_val,
-                            revenda=revenda_val,
-                            ano=ano_val
-                        )
-                        motos.append(moto)
+                        # Se revenda for maior que preço após conversões (e preço > 0), ajustar revenda.
+                        if preco_val > 0 and revenda_val > preco_val:
+                            # print(f"Aviso [Linha {num_linha_arquivo}]: Revenda ({revenda_val}) > Preço ({preco_val}). Ajustando revenda para 90% do preço.")
+                            revenda_val = preco_val * 0.9
+
+                        motos.append(
+                            Moto(marca=marca_str, nome=nome_str, preco=preco_val, revenda=revenda_val, ano=ano_val))
 
                     except KeyError as e:
-                        # Este erro não deveria ocorrer se a validação do cabeçalho passou,
-                        # mas é uma salvaguarda.
-                        print(f"Aviso: Coluna esperada '{e}' não encontrada na linha {i + 2}. Linha ignorada: {linha}")
+                        # print(f"Aviso [Linha {num_linha_arquivo}]: Coluna '{e}' não encontrada. Linha ignorada: {linha}")
+                        linhas_ignoradas_count += 1
                     except Exception as e_linha:
-                        # Captura qualquer outra exceção durante o processamento da linha
-                        print(
-                            f"Aviso: Erro inesperado ao processar linha {i + 2}: '{e_linha}'. Linha ignorada: {linha}")
+                        # print(f"Aviso [Linha {num_linha_arquivo}]: Erro inesperado: '{e_linha}'. Linha ignorada: {linha}")
+                        linhas_ignoradas_count += 1
 
         except FileNotFoundError:
             print(f"Erro Crítico: Arquivo de dataset não encontrado em '{os.path.abspath(caminho)}'")
-            # Em um aplicativo real, você poderia levantar a exceção para ser tratada mais acima
-            # raise FileNotFoundError(f"Arquivo não encontrado: {caminho}")
-            return []  # Retorna lista vazia para o programa tentar continuar ou informar o usuário
+            return []
         except Exception as e_geral:
             print(f"Erro Crítico: Erro inesperado ao tentar ler o arquivo '{caminho}': {e_geral}")
-            # raise # Re-levanta a exceção se quiser que o programa pare
             return []
 
-        if not motos:
+        if linhas_ignoradas_count > 0:
             print(
-                f"Aviso: Nenhum dado de moto foi carregado do arquivo '{caminho}' ou todas as linhas continham erros.")
+                f"AVISO: {linhas_ignoradas_count} de {linhas_lidas_total} linhas foram ignoradas devido a dados faltantes ou inválidos.")
+
+        if not motos and linhas_lidas_total > 0:  # Se leu linhas mas nenhuma moto foi criada
+            print(
+                f"AVISO: Nenhuma moto válida foi carregada do arquivo '{caminho}' após processar {linhas_lidas_total} linhas.")
+        elif not motos:  # Se não leu nenhuma linha (ex: arquivo existe mas está vazio)
+            print(f"AVISO: Nenhum dado de moto foi carregado do arquivo '{caminho}'. O arquivo pode estar vazio.")
         else:
             print(f"✅ {len(motos)} motos carregadas com sucesso de '{caminho}'.")
+
         return motos

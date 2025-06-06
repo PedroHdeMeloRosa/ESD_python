@@ -24,72 +24,70 @@ from Estruturas.hash_table import HashTable
 from Estruturas.bloom_filter import BloomFilter
 from Estruturas.radix_tree import RadixTree
 from Estruturas.b_tree_v2 import BTreeV2
-from ui.menu import menu_estrutura, submenu_testes_restricao  # submenu_testes_restricao é essencial
+from ui.menu import menu_estrutura, submenu_testes_restricao
 from modelos.moto import Moto, MotoEstatisticas
 
 
 class PerformanceMetrics:
-    # NENHUM atributo de classe para delay aqui
-
     @staticmethod
     def measure(func: Callable, *args, **kwargs) -> Dict[str, Any]:
-        # 1. Aplica carga de CPU extra ANTES de medir o tempo da função principal
-        restricao_processamento.executar_carga_computacional_extra()  # Para restrições P1, P2
-
-        # 2. Aplica delay de latência ANTES de iniciar o cronômetro da função principal
-        restricao_latencia.aplicar_delay_operacao_se_configurado()  # Para restrição L1
+        restricao_processamento.executar_carga_computacional_extra()
+        restricao_latencia.aplicar_delay_operacao_se_configurado()
 
         tracemalloc.start()
         start_time = time.perf_counter()
-
-        result = func(*args, **kwargs)  # Executa a função original
-
+        result = func(*args, **kwargs)  # Executa a função original da estrutura
         measured_time_ms = (time.perf_counter() - start_time) * 1000
 
         current, peak = tracemalloc.get_traced_memory()
         tracemalloc.stop()
 
         return {
-            'time': measured_time_ms,  # Tempo real da função + delay (se houver) + carga (implícito no tempo)
-            'current_memory': current / 1024,
-            'peak_memory': peak / 1024,
-            'result': result
+            'time': measured_time_ms,
+            'current_memory': current / 1024.0,
+            'peak_memory': peak / 1024.0,
+            'result': result  # Importante para saber se a inserção/remoção teve sucesso
         }
 
 
 class StructureAnalyzer:
-    # ... (__init__ e @property structures_prototypes como na sua última versão funcional e corrigida) ...
     def __init__(self, motorcycles_dataset: List[Moto]):
         self.motorcycles_full_dataset_original: List[Moto] = motorcycles_dataset
         self.current_dataset_for_analysis: List[Moto] = copy.deepcopy(motorcycles_dataset)
         self.t_btree = 3
         self.active_restriction_config: Optional[Dict[str, Any]] = None
+        # self.structures_prototypes é uma property para ser dinâmica
         self.initialized_structures: Dict[str, Any] = {}
         self.performance_results: Dict[str, Dict[str, Any]] = {}
         self.last_init_sample_size: Optional[int] = None
         self.scalability_results: Dict[str, List[Dict[str, Any]]] = {}
-        self.active_restriction_name: Optional[str] = None
+        self.active_restriction_name: Optional[str] = None  # Para nomear relatórios/gráficos
 
     @property
     def structures_prototypes(self) -> Dict[str, Callable[[], Any]]:
+        """Retorna os protótipos das estruturas, aplicando restrições de construtor dinamicamente."""
+        # Obtém parâmetros de restrição dos módulos de simulação
         ht_fator_override = restricao_algoritmica.obter_hash_fator_carga_override()
         ll_capacidade_override = restricao_memoria.obter_capacidade_lista_lru()
         max_elements_override = restricao_memoria.obter_limite_max_elementos()
+
         dataset_len = len(self.current_dataset_for_analysis) if self.current_dataset_for_analysis else 0
         ht_cap_base = max(101, dataset_len // 10 if dataset_len > 0 else 101)
         bf_items_base = dataset_len if dataset_len > 0 else 1000
+
         final_ht_fator_carga = ht_fator_override if ht_fator_override is not None else 0.7
+
         return {
             'LinkedList': lambda: LinkedList(capacidade_maxima=ll_capacidade_override),
             'AVLTree': lambda: AVLTree(max_elements=max_elements_override),
             'HashTable': lambda: HashTable(capacidade=ht_cap_base, fator_carga_max=final_ht_fator_carga),
             'BloomFilter': lambda: BloomFilter(num_itens_esperados=bf_items_base),
-            'RadixTree': lambda: RadixTree(),  # Adicionar max_elements aqui se implementado
+            'RadixTree': lambda: RadixTree(max_elements=max_elements_override),  # Assumindo RadixTree foi modificada
             'BTree': lambda: BTreeV2(t=self.t_btree, max_elements=max_elements_override)
         }
 
-    # _apply_instance_restrictions e _revert_instance_restrictions como antes
     def _apply_instance_restrictions(self, instance: Any, struct_name: str):
+        """Aplica restrições que afetam uma instância após a criação."""
         if self.active_restriction_config:
             limit_passos = restricao_algoritmica.obter_limite_passos_busca_arvore()
             if limit_passos is not None:
@@ -97,8 +95,9 @@ class StructureAnalyzer:
                     instance.set_search_step_limit(limit_passos)
 
     def _revert_instance_restrictions(self, instance: Any, struct_name: str):
+        """Reverte restrições de instância."""
         if struct_name in ["AVLTree", "BTree"] and hasattr(instance, 'set_search_step_limit'):
-            instance.set_search_step_limit(None)
+            instance.set_search_step_limit(None)  # Reverte para sem limite
 
     def _prepare_and_configure_for_restriction(self, restriction_config: Optional[Dict[str, Any]]):
         """Prepara o ambiente para uma suíte de teste (com ou sem restrição)."""
@@ -106,211 +105,6 @@ class StructureAnalyzer:
         self.active_restriction_name = None
         self.active_restriction_config = None
 
-        # Resetar TODAS as configurações de simulação para seus estados padrão (geralmente "desligado" ou "default")
-        restricao_processamento.configurar_carga_computacional_extra(0)  # Reseta para 0 loops
-        restricao_latencia.configurar_delay_operacao_constante(None)  # Reseta para sem delay
-        restricao_latencia.configurar_insercao_lote(None, None)  # Reseta para sem lote
-        restricao_memoria.configurar_limite_max_elementos(None)  # Reseta para sem limite
-        restricao_memoria.configurar_descarte_lru_lista(None)  # Reseta para sem capacidade LRU
-        restricao_algoritmica.configurar_hash_fator_carga_baixo(None)  # Reseta para fator padrão da HashTable
-        restricao_algoritmica.configurar_limite_passos_busca_arvore(None)  # Reseta para sem limite de passos
-
-        if restriction_config:
-            self.active_restriction_config = restriction_config
-            self.active_restriction_name = restriction_config.get("nome", "RestricaoDesconhecida")
-            cat = restriction_config.get("tipo_categoria")
-            tipo_subtipo = restriction_config.get("tipo") or restriction_config.get("subtipo")
-            params = restriction_config.get("params", {})
-            print(
-                f"\nINFO: Configurando para restrição: {self.active_restriction_name} ({cat}/{tipo_subtipo}) c/ params {params}")
-
-            if cat == "dados":
-                if tipo_subtipo == "corromper_precos":
-                    self.current_dataset_for_analysis = restricao_dados.corromper_precos_aleatoriamente(
-                        self.current_dataset_for_analysis, **params)
-                elif tipo_subtipo == "anos_anomalos":
-                    self.current_dataset_for_analysis = restricao_dados.introduzir_anos_anomalos(
-                        self.current_dataset_for_analysis, **params)
-            elif cat == "processamento":
-                if tipo_subtipo == "carga_extra": restricao_processamento.configurar_carga_computacional_extra(**params)
-            elif cat == "latencia":
-                if tipo_subtipo == "delay_operacao_constante":
-                    restricao_latencia.configurar_delay_operacao_constante(params.get("delay_segundos"))
-                elif tipo_subtipo == "insercao_lote_com_delay":
-                    restricao_latencia.configurar_insercao_lote(params.get("tamanho_lote"),
-                                                                params.get("delay_por_lote_segundos"))
-            elif cat == "memoria":
-                if tipo_subtipo == "limite_max_elementos":
-                    restricao_memoria.configurar_limite_max_elementos(params.get("max_elementos"))
-                elif tipo_subtipo == "descarte_lru_lista":
-                    restricao_memoria.configurar_descarte_lru_lista(params.get("capacidade_lista"))
-            elif cat == "algoritmica":
-                if tipo_subtipo == "hash_fator_carga_baixo":
-                    restricao_algoritmica.configurar_hash_fator_carga_baixo(params.get("fator_carga_max"))
-                elif tipo_subtipo == "limite_passos_busca_arvore":
-                    restricao_algoritmica.configurar_limite_passos_busca_arvore(params.get("max_passos"))
-        # A property self.structures_prototypes é chamada novamente em initialize_all_structures,
-        # então ela pegará os novos valores dos módulos de restrição.
-
-    # ... (initialize_all_structures como na sua ÚLTIMA versão COMPLETA, não há mudanças aqui se ela já estava correta) ...
-    # ... (run_benchmark_operations como na sua ÚLTIMA versão COMPLETA) ...
-    # ... (_generate_performance_report_table como na sua ÚLTIMA versão COMPLETA) ...
-    # ... (_generate_comparison_charts como na sua ÚLTIMA versão COMPLETA) ...
-    # ... (_generate_insertion_evolution_charts como na sua ÚLTIMA versão COMPLETA) ...
-    # ... (run_scalability_tests como na sua ÚLTIMA versão COMPLETA) ...
-    # ... (_generate_scalability_charts como na sua ÚLTIMA versão COMPLETA) ...
-
-    def run_suite_with_restriction(self, restriction_config: Dict[str, Any], init_sample_size: Optional[int] = None,
-                                   benchmark_ops_count: int = 100, run_scalability_flag: bool = False,
-                                   scalability_sizes: Optional[List[int]] = None):
-        print(f"\n\n{'=' * 10} EXECUTANDO SUÍTE COM RESTRIÇÃO: {restriction_config.get('nome', 'N/A')} {'=' * 10}")
-        self._prepare_and_configure_for_restriction(restriction_config)  # Configura tudo
-
-        self.initialize_all_structures(sample_size=init_sample_size, verbose=True)
-        # As restrições de instância (A1) são aplicadas dentro de initialize_all_structures
-        # e a reversão também deve ser coordenada ou feita após todos os usos da instância.
-        # Se `_apply_instance_restrictions` é chamado dentro de initialize_all_structures (como deveria ser)
-        # precisamos de um `_revert_instance_restrictions` correspondente no final de run_benchmark_operations
-        # OU antes de sair de run_suite_with_restriction.
-        # Vamos garantir que revertemos no final da suíte.
-
-        self.run_benchmark_operations(num_operations=benchmark_ops_count, verbose=True)
-
-        print(f"\n📋 Gerando Relatórios e Gráficos para Restrição: {self.active_restriction_name}...")
-        self._generate_performance_report_table()
-        self._generate_comparison_charts()
-        self._generate_insertion_evolution_charts()
-
-        if run_scalability_flag:
-            # Para escalabilidade, as configurações de restrição já estão ativas (via _prepare_and_configure...)
-            # run_scalability_tests usará `self.structures_prototypes` que reflete essas configurações
-            # e também `self._apply_instance_restrictions` para cada nova instância.
-            self.run_scalability_tests(sizes_to_test=scalability_sizes, verbose=True)
-            print(f"\n📈 Gerando Gráficos de Escalabilidade para Restrição: {self.active_restriction_name}...")
-            self._generate_scalability_charts(log_scale_plots=True)
-
-        # Resetar todas as configurações de restrição ao final da suíte de teste com restrição
-        self._prepare_and_configure_for_restriction(None)
-        print(f"\n{'=' * 10} SUÍTE COM RESTRIÇÃO {restriction_config.get('nome', 'N/A')} CONCLUÍDA {'=' * 10}")
-
-
-class StructureAnalyzer:
-    # ... (__init__, @property structures_prototypes como antes) ...
-
-    # _apply_instance_restrictions e _revert_instance_restrictions como antes
-
-    def _prepare_and_configure_for_restriction(self, restriction_config: Optional[Dict[str, Any]]):
-        # ... (resetar dataset como antes) ...
-        self.active_restriction_name = None
-        self.active_restriction_config = None
-
-        # Resetar todas as configurações de simulação para o padrão
-        restricao_processamento.configurar_carga_computacional_extra(0)
-        restricao_latencia.configurar_delay_operacao_constante(None)  # <<< CORREÇÃO AQUI: Passa None para resetar
-        restricao_latencia.configurar_insercao_lote(None, None)
-        restricao_memoria.configurar_limite_max_elementos(None)
-        restricao_memoria.configurar_descarte_lru_lista(None)
-        restricao_algoritmica.configurar_hash_fator_carga_baixo(None)
-        restricao_algoritmica.configurar_limite_passos_busca_arvore(None)
-
-        if restriction_config:
-            self.active_restriction_config = restriction_config
-            self.active_restriction_name = restriction_config.get("nome", "RestricaoDesconhecida")
-            cat = restriction_config.get("tipo_categoria")
-            tipo_subtipo = restriction_config.get("tipo") or restriction_config.get("subtipo")
-            params = restriction_config.get("params", {})
-            print(
-                f"\nINFO: Configurando para restrição: {self.active_restriction_name} ({cat}/{tipo_subtipo}) c/ params {params}")
-
-            # ... (lógica para 'dados', 'processamento' como antes) ...
-            if cat == "dados":  # ...
-                if tipo_subtipo == "corromper_precos":
-                    self.current_dataset_for_analysis = restricao_dados.corromper_precos_aleatoriamente(
-                        self.current_dataset_for_analysis, **params)
-                elif tipo_subtipo == "anos_anomalos":
-                    self.current_dataset_for_analysis = restricao_dados.introduzir_anos_anomalos(
-                        self.current_dataset_for_analysis, **params)
-            elif cat == "processamento":  # ...
-                if tipo_subtipo == "carga_extra": restricao_processamento.configurar_carga_computacional_extra(**params)
-            elif cat == "latencia":
-                if tipo_subtipo == "delay_operacao_constante":
-                    restricao_latencia.configurar_delay_operacao_constante(
-                        params.get("delay_segundos"))  # <<< CORREÇÃO AQUI
-                elif tipo_subtipo == "insercao_lote_com_delay":
-                    restricao_latencia.configurar_insercao_lote(params.get("tamanho_lote"), params.get(
-                        "delay_por_lote_segundos"))  # <<< CORREÇÃO AQUI
-            # ... (lógica para 'memoria', 'algoritmica' como antes) ...
-            elif cat == "memoria":
-                if tipo_subtipo == "limite_max_elementos":
-                    restricao_memoria.configurar_limite_max_elementos(params.get("max_elementos"))
-                elif tipo_subtipo == "descarte_lru_lista":
-                    restricao_memoria.configurar_descarte_lru_lista(params.get("capacidade_lista"))
-            elif cat == "algoritmica":
-                if tipo_subtipo == "hash_fator_carga_baixo":
-                    restricao_algoritmica.configurar_hash_fator_carga_baixo(params.get("fator_carga_max"))
-                elif tipo_subtipo == "limite_passos_busca_arvore":
-                    restricao_algoritmica.configurar_limite_passos_busca_arvore(params.get("max_passos"))
-
-
-class StructureAnalyzer:
-    def __init__(self, motorcycles_dataset: List[Moto]):
-        self.motorcycles_full_dataset_original: List[Moto] = motorcycles_dataset
-        self.current_dataset_for_analysis: List[Moto] = copy.deepcopy(motorcycles_dataset)
-        self.t_btree = 3
-        self.active_restriction_config: Optional[Dict[str, Any]] = None
-        # self.structures_prototypes é uma property
-        self.initialized_structures: Dict[str, Any] = {}
-        self.performance_results: Dict[str, Dict[str, Any]] = {}
-        self.last_init_sample_size: Optional[int] = None
-        self.scalability_results: Dict[str, List[Dict[str, Any]]] = {}
-        self.active_restriction_name: Optional[str] = None
-
-    @property
-    def structures_prototypes(self) -> Dict[str, Callable[[], Any]]:
-        """Retorna os protótipos das estruturas, aplicando restrições de construtor dinamicamente."""
-        ht_fator_override = restricao_algoritmica.obter_hash_fator_carga_override()
-        ll_capacidade_override = restricao_memoria.obter_capacidade_lista_lru()
-        max_elements_override = restricao_memoria.obter_limite_max_elementos()
-
-        dataset_len = len(self.current_dataset_for_analysis) if self.current_dataset_for_analysis else 0
-        ht_cap_base = max(101, dataset_len // 10 if dataset_len > 0 else 101)
-        bf_items_base = dataset_len if dataset_len > 0 else 1000
-        final_ht_fator_carga = ht_fator_override if ht_fator_override is not None else 0.7
-
-        # As estruturas que suportam max_elements devem ser inicializadas com ele
-        # se max_elements_override não for None.
-        return {
-            'LinkedList': lambda: LinkedList(capacidade_maxima=ll_capacidade_override),  # M2
-            'AVLTree': lambda: AVLTree(max_elements=max_elements_override),  # M1
-            'HashTable': lambda: HashTable(capacidade=ht_cap_base, fator_carga_max=final_ht_fator_carga),  # A2
-            'BloomFilter': lambda: BloomFilter(num_itens_esperados=bf_items_base),
-            # M1 não diretamente, mas sample size sim
-            'RadixTree': lambda: RadixTree(),
-            # Adicionar (max_elements=max_elements_override) se RadixTree for modificada para M1
-            'BTree': lambda: BTreeV2(t=self.t_btree, max_elements=max_elements_override)  # M1
-        }
-
-    def _apply_instance_restrictions(self, instance: Any, struct_name: str):
-        """Aplica restrições que afetam uma instância após a criação (ex: limite de busca)."""
-        if self.active_restriction_config:  # Só aplica se uma restrição estiver ativa
-            limit_passos = restricao_algoritmica.obter_limite_passos_busca_arvore()  # A1
-            if limit_passos is not None:
-                if struct_name in ["AVLTree", "BTree"] and hasattr(instance, 'set_search_step_limit'):
-                    instance.set_search_step_limit(limit_passos)
-
-    def _revert_instance_restrictions(self, instance: Any, struct_name: str):
-        """Reverte restrições de instância (atualmente apenas limite de passos de busca)."""
-        if struct_name in ["AVLTree", "BTree"] and hasattr(instance, 'set_search_step_limit'):
-            instance.set_search_step_limit(None)
-
-    def _prepare_and_configure_for_restriction(self, restriction_config: Optional[Dict[str, Any]]):
-        """Prepara o ambiente para uma suíte de teste (com ou sem restrição)."""
-        # 1. Resetar dataset para o original
-        self.current_dataset_for_analysis = copy.deepcopy(self.motorcycles_full_dataset_original)
-
-        # 2. Resetar todas as configurações de simulação para o padrão
-        self.active_restriction_name = None
-        self.active_restriction_config = None
         restricao_processamento.configurar_carga_computacional_extra(0)
         restricao_latencia.configurar_delay_operacao_constante(None)
         restricao_latencia.configurar_insercao_lote(None, None)
@@ -319,7 +113,6 @@ class StructureAnalyzer:
         restricao_algoritmica.configurar_hash_fator_carga_baixo(None)
         restricao_algoritmica.configurar_limite_passos_busca_arvore(None)
 
-        # 3. Aplicar nova configuração de restrição, se houver
         if restriction_config:
             self.active_restriction_config = restriction_config
             self.active_restriction_name = restriction_config.get("nome", "RestricaoDesconhecida")
@@ -337,7 +130,7 @@ class StructureAnalyzer:
                     self.current_dataset_for_analysis = restricao_dados.introduzir_anos_anomalos(
                         self.current_dataset_for_analysis, **params)
             elif cat == "processamento":
-                if tipo_subtipo == "carga_extra": restricao_processamento.configurar_carga_computacional_extra(**params)
+                restricao_processamento.configurar_carga_computacional_extra(params.get("num_loops_extras", 0))
             elif cat == "latencia":
                 if tipo_subtipo == "delay_operacao_constante":
                     restricao_latencia.configurar_delay_operacao_constante(params.get("delay_segundos"))
@@ -354,43 +147,47 @@ class StructureAnalyzer:
                     restricao_algoritmica.configurar_hash_fator_carga_baixo(params.get("fator_carga_max"))
                 elif tipo_subtipo == "limite_passos_busca_arvore":
                     restricao_algoritmica.configurar_limite_passos_busca_arvore(params.get("max_passos"))
-        # A property self.structures_prototypes será automaticamente atualizada na próxima chamada.
+        # A property self.structures_prototypes será chamada em initialize_all_structures e run_scalability_tests
 
     def initialize_all_structures(self, sample_size: Optional[int] = None, verbose: bool = True) -> None:
         if not self.current_dataset_for_analysis:
             if verbose: print("Dataset de análise atual está vazio."); return
 
-        actual_sample_size_requested = 0
-        if sample_size is None:
-            actual_sample_size_requested = len(self.current_dataset_for_analysis)
-        else:
-            actual_sample_size_requested = min(sample_size, len(self.current_dataset_for_analysis))
+        actual_sample_size_requested = len(self.current_dataset_for_analysis) if sample_size is None \
+            else min(sample_size, len(self.current_dataset_for_analysis))
 
-        # Limite M1 (max_elements) tem precedência se for menor
-        max_elements_restr = restricao_memoria.obter_limite_max_elementos()
         final_sample_size_for_init = actual_sample_size_requested
+        # Restrição M1 (limite_max_elementos) aplicada globalmente pelo módulo de simulação
+        # Se a estrutura for criada com max_elements, ela se auto-limitará.
+        # O `sample_to_insert` ainda pode ser maior que o limite da estrutura.
+        max_elements_restr = restricao_memoria.obter_limite_max_elementos()
         if max_elements_restr is not None:
             final_sample_size_for_init = min(actual_sample_size_requested, max_elements_restr)
             if verbose and final_sample_size_for_init < actual_sample_size_requested:
-                print(f"INFO: Amostra limitada a {final_sample_size_for_init} por restrição M1 ({max_elements_restr}).")
+                print(
+                    f"INFO: Amostra para inicialização limitada a {final_sample_size_for_init} por restrição de máx. elementos ({max_elements_restr}).")
 
         sample_to_insert = []
-        if final_sample_size_for_init <= 0:
-            if verbose: print(
-                f"AVISO: Tamanho de amostra final {final_sample_size_for_init}. Inserções não realizadas.");
-        elif len(self.current_dataset_for_analysis) > 0:
-            sample_to_insert = random.sample(self.current_dataset_for_analysis,
-                                             k=min(final_sample_size_for_init, len(self.current_dataset_for_analysis)))
+        if final_sample_size_for_init > 0 and len(self.current_dataset_for_analysis) > 0:
+            # Garante que k não é maior que a população
+            k_sample = min(final_sample_size_for_init, len(self.current_dataset_for_analysis))
+            if k_sample > 0:
+                sample_to_insert = random.sample(self.current_dataset_for_analysis, k=k_sample)
 
-        self.last_init_sample_size = final_sample_size_for_init  # Tamanho que tentaremos inserir
+        if not sample_to_insert and final_sample_size_for_init > 0:
+            if verbose: print(
+                f"AVISO: Amostra para inserção ficou vazia (sample_size_for_init: {final_sample_size_for_init}, dataset_len: {len(self.current_dataset_for_analysis)}). Nenhuma inserção.")
+            final_sample_size_for_init = 0  # Corrige para 0 se não há o que inserir
+
+        self.last_init_sample_size = final_sample_size_for_init
         ds_info = f"(Dataset: {self.active_restriction_name or 'Original'})"
         if verbose: print(f"\n⏳ Inicializando com até {final_sample_size_for_init} motos {ds_info}...")
         self.initialized_structures.clear();
         self.performance_results.clear()
 
-        for name, constructor_factory in self.structures_prototypes.items():  # Usa a property atualizada
+        for name, constructor_factory in self.structures_prototypes.items():
             if verbose: print(f"\n  Inicializando {name}...")
-            structure_instance = constructor_factory()  # Estruturas criadas com configs M1, M2, A2
+            structure_instance = constructor_factory()  # Cria instância com configs de restrição
             self._apply_instance_restrictions(structure_instance, name)  # Aplica A1
 
             ins_metrics_list = [];
@@ -398,53 +195,42 @@ class StructureAnalyzer:
             max_peak_mem_overall = 0.0;
             items_actually_inserted_in_struct = 0
 
-            batch_config = restricao_latencia.obter_config_insercao_lote()  # L2
+            batch_config = restricao_latencia.obter_config_insercao_lote();  # L2
             batch_s = batch_config["tamanho_lote"] if batch_config else 1
             delay_batch_s = batch_config["delay_por_lote_segundos"] if batch_config else 0.0
 
+            current_items_in_loop = 0
             if final_sample_size_for_init > 0 and sample_to_insert:
                 for i in range(0, len(sample_to_insert), batch_s):
                     current_batch_to_insert = sample_to_insert[i: min(i + batch_s, len(sample_to_insert))]
                     if not current_batch_to_insert: continue
 
-                    t_batch_start = time.perf_counter()
+                    t_batch_start_for_timing = time.perf_counter()  # Para medir o tempo do lote
                     for bike in current_batch_to_insert:
-                        # Medição individual de tempo e memória da operação de inserção
+                        # A estrutura DEVE se auto-limitar se 'max_elements' foi passado no seu construtor (M1)
+                        # ou se é a LinkedList com 'capacidade_maxima' (M2).
+                        # A contagem 'items_actually_inserted_in_struct' será feita com len(structure_instance) no final.
                         metrics = PerformanceMetrics.measure(structure_instance.inserir, bike)
                         ins_metrics_list.append({'time': metrics['time'], 'peak_memory': metrics['peak_memory']})
                         if metrics['peak_memory'] > max_peak_mem_overall: max_peak_mem_overall = metrics['peak_memory']
 
-                        # Verifica se a estrutura realmente inseriu o item (se o método 'inserir' retornar bool)
-                        # ou se a estrutura se auto-limitou (M1, M2)
-                        if metrics.get('result') is not False:  # Assume que None ou True significa inserção
-                            # Se a estrutura tem __len__, usamos ele para saber quantos foram inseridos de verdade
-                            # Se não, incrementamos nosso contador. A LinkedList modificada terá __len__ correto.
-                            # Para M1 em árvores, elas devem parar de incrementar seu _count interno.
-                            pass  # items_actually_inserted_in_struct será len(structure_instance) no final
-
-                    batch_t_ms = (time.perf_counter() - t_batch_start) * 1000
+                    batch_t_ms = (time.perf_counter() - t_batch_start_for_timing) * 1000
                     total_t_ins += batch_t_ms
-
-                    # Se M1 está ativa E a estrutura NÃO se autolimita (caso genérico), paramos de inserir
-                    # Este if é um fallback se a estrutura não implementar max_elements internamente.
-                    # A LinkedList modificada e as Árvores modificadas devem se autolimitar.
-                    # if max_elements_restr is not None and hasattr(structure_instance, '__len__') \
-                    #    and len(structure_instance) >= max_elements_restr:
-                    #     break # Sai do loop de lotes
 
                     if batch_config and delay_batch_s > 0: time.sleep(
                         delay_batch_s); total_t_ins += delay_batch_s * 1000
+                    current_items_in_loop += len(current_batch_to_insert)
                     if verbose and (i // batch_s + 1) % (max(1, (len(sample_to_insert) // batch_s) // 10)) == 0: print(
                         f"    Processado lote {(i // batch_s) + 1} ({len(current_batch_to_insert)} itens) em {name}...")
 
-            # Após todas as inserções, pegamos o len da estrutura.
             if hasattr(structure_instance, '__len__'):
                 try:
                     items_actually_inserted_in_struct = len(structure_instance)
                 except:
-                    items_actually_inserted_in_struct = len(ins_metrics_list)  # Fallback
+                    items_actually_inserted_in_struct = sum(
+                        1 for m in ins_metrics_list if m['time'] >= 0)  # Estimativa se __len__ falha
             else:
-                items_actually_inserted_in_struct = len(ins_metrics_list)  # Fallback
+                items_actually_inserted_in_struct = sum(1 for m in ins_metrics_list if m['time'] >= 0)
 
             denom = items_actually_inserted_in_struct if items_actually_inserted_in_struct > 0 else (
                 1 if total_t_ins > 0 else 0)
@@ -452,38 +238,15 @@ class StructureAnalyzer:
 
             self.initialized_structures[name] = structure_instance
             self.performance_results[name] = {
-                'initialization': {
-                    'sample_size': items_actually_inserted_in_struct,
-                    'total_time_ms': total_t_ins,
-                    'avg_insert_time_ms': avg_ins_t,
-                    'peak_memory_init_kb': max_peak_mem_overall,  # Pico dos picos individuais
-                    'insertion_evolution_data': ins_metrics_list
-                }
-            }
+                'initialization': {'sample_size': items_actually_inserted_in_struct,
+                                   'total_time_ms': total_t_ins, 'avg_insert_time_ms': avg_ins_t,
+                                   'peak_memory_init_kb': max_peak_mem_overall,
+                                   'insertion_evolution_data': ins_metrics_list}}
             if verbose: print(
-                f"  {name} inicializado ({items_actually_inserted_in_struct} itens). Média ins: {avg_ins_t:.4f} ms. Pico Mem (max indiv.): {max_peak_mem_overall:.2f} KB")
-            # Não reverter _apply_instance_restrictions aqui, elas devem valer para run_benchmark_operations.
-
-    # Cole aqui as versões COMPLETAS e FUNCIONAIS de:
-    # run_benchmark_operations
-    # _generate_performance_report_table
-    # _generate_comparison_charts
-    # _generate_insertion_evolution_charts
-    # run_scalability_tests
-    # _generate_scalability_charts
-    # Elas já estão na sua versão do código do último envio, e devem funcionar com as mudanças acima.
-    # Apenas certifique-se de que `run_benchmark_operations` e `run_scalability_tests`
-    # chamam `self._apply_instance_restrictions` e `self._revert_instance_restrictions`
-    # em volta das operações de busca se a restrição A1 estiver ativa.
+                f"  {name} inicializado ({items_actually_inserted_in_struct} itens). Média Ins.: {avg_ins_t:.4f} ms. Pico Mem (max indiv.): {max_peak_mem_overall:.2f} KB")
+            # Não reverter _apply_instance_restrictions aqui; será feito após benchmarks
 
     def run_benchmark_operations(self, num_operations: int = 100, verbose: bool = True) -> None:
-        # ... (Copie da sua última versão completa e funcional) ...
-        # Garantir que usa self.current_dataset_for_analysis
-        # E que _apply_instance_restrictions/_revert_instance_restrictions são chamados se necessário
-        # para a busca. No entanto, como _apply_instance_restrictions já é chamado
-        # antes de run_benchmark_operations em run_suite_with_restriction,
-        # e revertido depois, aqui só precisamos rodar os benchmarks.
-        # O ideal é que o limite de busca (A1) seja uma propriedade da instância da árvore.
         if not self.initialized_structures:
             if verbose: print("Nenhuma estrutura inicializada."); return
         if not self.current_dataset_for_analysis:
@@ -517,22 +280,24 @@ class StructureAnalyzer:
 
             if hasattr(structure, 'inserir'):
                 insert_times, insert_mems = [], []
-                can_insert_more = True  # Assume que pode por padrão
-                # Se a estrutura foi inicializada com limite M1 e ela o respeita internamente
+                can_insert_more = True
                 if hasattr(structure, 'max_elements') and structure.max_elements is not None:
                     if hasattr(structure, '__len__') and len(structure) >= structure.max_elements:
                         can_insert_more = False
 
                 if can_insert_more:
+                    items_inserted_bench = 0
                     for bike in sample_for_new_insertion:
                         metrics = PerformanceMetrics.measure(structure.inserir, bike)
+                        if metrics.get('result', True) is not False:  # Assume None ou True é sucesso
+                            items_inserted_bench += 1
                         insert_times.append(metrics['time'])
                         insert_mems.append(metrics['peak_memory'])
-                    op_results_summary['new_insertion_avg_time_ms'] = sum(
-                        insert_times) / actual_num_operations if actual_num_operations and insert_times else 0.0
+                    op_results_summary['new_insertion_avg_time_ms'] = sum(insert_times) / len(
+                        insert_times) if insert_times else 0.0
                     op_results_summary['new_insertion_peak_memory_kb'] = max(insert_mems) if insert_mems else 0.0
                     if verbose: print(
-                        f"    Nova Inserção: Tempo médio {op_results_summary['new_insertion_avg_time_ms']:.4f} ms")
+                        f"    Nova Inserção ({items_inserted_bench} itens): Tempo médio {op_results_summary['new_insertion_avg_time_ms']:.4f} ms")
                 else:
                     if verbose: print(
                         f"    Nova Inserção: Estrutura {name} cheia (limite M1). Teste de inserção pulado.")
@@ -562,14 +327,10 @@ class StructureAnalyzer:
 
             if hasattr(structure, 'remover') and name not in ["BloomFilter", "BTree"]:
                 for bike in sample_for_new_insertion:
-                    structure.remover(bike)
-
-    # (COLE AQUI AS VERSÕES COMPLETAS DE _generate_performance_report_table, _generate_comparison_charts,
-    #  _generate_insertion_evolution_charts, run_scalability_tests, e _generate_scalability_charts
-    #  DA MINHA PENÚLTIMA RESPOSTA, QUE JÁ TINHAM AS CORREÇÕES DE GRÁFICOS E A LÓGICA DE active_restriction_name)
-    # Vou colar as funções de plotagem aqui para garantir:
+                    structure.remover(bike)  # Tenta remover as motos de teste
 
     def _generate_performance_report_table(self) -> None:
+        # (Implementação completa da sua última versão funcional)
         report_title = self.active_restriction_name.upper() if self.active_restriction_name else "BENCHMARKS PADRÃO"
         print(f"\n\n📊 RELATÓRIO DE DESEMPENHO ({report_title}) 📊")
         if not self.performance_results: print("Nenhum resultado para gerar relatório."); return
@@ -593,7 +354,7 @@ class StructureAnalyzer:
             ht_i = self.initialized_structures.get('HashTable');
             cap = ht_i.capacidade if ht_i else "N/A"
             print("\n--- Stats Colisão HashTable ---");
-            print(f"  Fator Carga: {ht_s.get('fator_carga_real', 0.0):.3f}");
+            print(f"  Fator Carga Real: {ht_s.get('fator_carga_real', 0.0):.3f}");
             print(f"  Buckets Vazios: {ht_s.get('num_buckets_vazios', 0)} / {cap}")
             print(
                 f"  Buckets c/ Colisão (ocupados): {ht_s.get('num_buckets_com_colisao', 0)}/{ht_s.get('num_buckets_ocupados', 0)} ({ht_s.get('percent_buckets_com_colisao_de_ocupados', 0.0):.2f}%)")
@@ -602,7 +363,7 @@ class StructureAnalyzer:
             print("=" * 70)
 
     def _generate_comparison_charts(self) -> None:
-        # ... (Como na penúltima resposta, com chart_suffix) ...
+        # (Implementação completa da sua última versão funcional)
         chart_suffix = f" (Restrição: {self.active_restriction_name})" if self.active_restriction_name else ""
         if not self.performance_results: print("Nenhum resultado para gráficos de comparação."); return
         names = list(self.performance_results.keys())
@@ -671,7 +432,7 @@ class StructureAnalyzer:
             if fig2 is not None: plt.close(fig2)
 
     def _generate_insertion_evolution_charts(self) -> None:
-        # ... (Como na penúltima resposta, com chart_suffix) ...
+        # (Implementação completa da sua última versão funcional)
         chart_suffix = f" (Restrição: {self.active_restriction_name})" if self.active_restriction_name else ""
         if not self.performance_results: print("Nenhum resultado para gráficos de evolução."); return
         try:
@@ -721,7 +482,7 @@ class StructureAnalyzer:
 
     def run_scalability_tests(self, sizes_to_test: Optional[List[int]] = None, num_searches_per_size: int = 100,
                               verbose: bool = True) -> None:
-        # ... (Como na penúltima resposta, usando current_dataset_for_analysis) ...
+        # (Implementação completa da sua última versão funcional)
         if not self.current_dataset_for_analysis:
             if verbose: print("Dataset de análise atual vazio. Testes de escalabilidade cancelados."); return
         if sizes_to_test is None:
@@ -733,7 +494,7 @@ class StructureAnalyzer:
             if not sizes_to_test and max_ds_s > 0:
                 sizes_to_test = [max_ds_s]
             elif not sizes_to_test:
-                sizes_to_test = [10]  # Fallback se dataset vazio
+                sizes_to_test = [10]
             sizes_to_test = sorted(list(set(s for s in sizes_to_test if s > 0)))
         dataset_info = f"(Dataset: {self.active_restriction_name or 'Original'})"
         if verbose: print(f"\n🔬 INICIANDO TESTES DE ESCALABILIDADE {dataset_info} para N = {sizes_to_test} ...")
@@ -744,8 +505,13 @@ class StructureAnalyzer:
                 if verbose: print(
                     f"AVISO: N={n_size} > dataset atual ({len(self.current_dataset_for_analysis)}). Pulando."); continue
             if verbose: print(f"\n  --- Testando com N = {n_size} ---")
-            curr_sample = random.sample(self.current_dataset_for_analysis,
-                                        k=min(n_size, len(self.current_dataset_for_analysis)))
+            # Garante que k (n_size) não é maior que a população (len(self.current_dataset_for_analysis))
+            k_sample = min(n_size, len(self.current_dataset_for_analysis))
+            if k_sample <= 0:
+                if verbose: print(
+                    f"      Amostra de tamanho {k_sample} inválida para N={n_size}. Pulando estruturas para este N.")
+                continue
+            curr_sample = random.sample(self.current_dataset_for_analysis, k_sample)
             for s_name, constructor_factory in self.structures_prototypes.items():
                 if verbose: print(f"    Testando {s_name}...")
                 instance = constructor_factory()
@@ -764,15 +530,15 @@ class StructureAnalyzer:
                     f"      Ins ({items_inserted}/{n_size}): Tot={t_tot_ins_ms:.2f}ms, Média={avg_ins_ms:.4f}ms/item, PicoMem={peak_mem_kb:.2f}KB")
                 avg_srch_ms = 0.0
                 if hasattr(instance, 'buscar'):
-                    n_srch = min(num_searches_per_size, items_inserted)
-                    if n_srch > 0:
-                        s_samp = random.sample(curr_sample[:items_inserted],
-                                               k=min(n_srch, items_inserted)) if items_inserted > 0 else []
+                    n_srch_actual = min(num_searches_per_size, items_inserted)
+                    if n_srch_actual > 0:
+                        s_samp_actual = random.sample(curr_sample[:items_inserted], k=min(n_srch_actual,
+                                                                                          items_inserted)) if items_inserted > 0 else []
                         s_t_list = []
-                        for b_s in s_samp: t_s_srch = time.perf_counter();instance.buscar(b_s);s_t_list.append(
+                        for b_s in s_samp_actual: t_s_srch = time.perf_counter();instance.buscar(b_s);s_t_list.append(
                             (time.perf_counter() - t_s_srch) * 1000)
-                        avg_srch_ms = sum(s_t_list) / n_srch if n_srch else 0.0
-                        if verbose: print(f"      Busca ({n_srch}): Média={avg_srch_ms:.4f}ms/item")
+                        avg_srch_ms = sum(s_t_list) / n_srch_actual if n_srch_actual else 0.0
+                        if verbose: print(f"      Busca ({n_srch_actual}): Média={avg_srch_ms:.4f}ms/item")
                     else:
                         if verbose: print(f"      Busca: Nenhuma.")
                 else:
@@ -785,7 +551,7 @@ class StructureAnalyzer:
         if verbose: print("\n🔬 Testes de Escalabilidade Concluídos! 🔬")
 
     def _generate_scalability_charts(self, log_scale_plots: bool = False) -> None:
-        # ... (Como na penúltima resposta, com chart_suffix) ...
+        # (Implementação completa da sua última versão funcional)
         chart_suffix = f" (Restrição: {self.active_restriction_name})" if self.active_restriction_name else ""
         if not self.scalability_results: print("Nenhum resultado para gráficos de escalabilidade."); return
         try:
@@ -803,24 +569,24 @@ class StructureAnalyzer:
                 ax.set_title(title, fontsize=15)
                 ax.set_xlabel('Nº Elementos Inseridos', fontsize=12);
                 ax.set_ylabel(ylabel, fontsize=12);
-                has_data = False  # Eixo X é itens inseridos
+                has_data_for_plot = False
                 for s_name, res_list in sorted(self.scalability_results.items()):
                     if not res_list: continue
                     s_res = sorted(res_list, key=lambda x: x['N'])
-                    n_vals = [r.get('items_actually_inserted', r['N']) for r in s_res]  # Usa items_actually_inserted
+                    n_vals = [r.get('items_actually_inserted', r['N']) for r in s_res]
                     m_vals = [r.get(metric, 0.0) for r in s_res]
                     if not any(abs(v) > 1e-6 for v in m_vals) and metric != 'peak_memory_kb':
                         if not (metric == 'avg_search_time_ms' and not hasattr(self.structures_prototypes[s_name](),
                                                                                'buscar')): pass
                         continue
-                    has_data = True;
+                    has_data_for_plot = True;
                     ax.plot(n_vals, m_vals, marker='o', ls='-', lw=2, ms=5, label=s_name)
-                if not has_data: print(f"Nenhum dado válido para plotar: {title}");
-                if fig and not has_data: plt.close(fig); continue
+                if not has_data_for_plot: print(f"Nenhum dado válido para plotar: {title}");
+                if fig and not has_data_for_plot: plt.close(fig); continue
                 if log_scale_plots and "Tempo" in ylabel:
-                    valid_points_for_log = False
+                    valid_points_for_log = False;
                     ax.clear();
-                    ax.set_title(title, fontsize=15);
+                    ax.set_title(title, fontsize=15)
                     ax.set_xlabel('Nº Elementos Inseridos', fontsize=12);
                     ax.set_ylabel(f"{ylabel} (Escala Log)", fontsize=12)
                     for s_name, res_list in sorted(self.scalability_results.items()):
@@ -848,45 +614,42 @@ class StructureAnalyzer:
     def run_suite_with_restriction(self, restriction_config: Dict[str, Any], init_sample_size: Optional[int] = None,
                                    benchmark_ops_count: int = 100, run_scalability_flag: bool = False,
                                    scalability_sizes: Optional[List[int]] = None):
-        # ... (Como na última resposta COMPLETA) ...
         print(f"\n\n{'=' * 10} EXECUTANDO SUÍTE COM RESTRIÇÃO: {restriction_config.get('nome', 'N/A')} {'=' * 10}")
         self._prepare_and_configure_for_restriction(restriction_config)
-        original_op_delay = PerformanceMetrics.simulated_operation_delay_seconds
-        original_extra_loops = restricao_processamento.SIMULATED_EXTRA_COMPUTATION_LOOPS
-        if self.active_restriction_config:
-            cat = self.active_restriction_config.get("tipo_categoria");
-            params = self.active_restriction_config.get("params", {});
-            subtipo = self.active_restriction_config.get("subtipo")
-            if cat == "processamento" and subtipo == "carga_extra":
-                restricao_processamento.configurar_carga_computacional_extra(**params)
-            elif cat == "latencia" and subtipo == "delay_operacao_constante":
-                PerformanceMetrics.set_simulated_operation_delay(params.get("delay_segundos", 0.0))
+
         self.initialize_all_structures(sample_size=init_sample_size, verbose=True)
-        for name, instance in self.initialized_structures.items(): self._apply_instance_restrictions(instance, name)
+        # Aplica restrições de instância (A1) ANTES dos benchmarks de operações
+        for name, instance in self.initialized_structures.items():
+            self._apply_instance_restrictions(instance, name)
+
         self.run_benchmark_operations(num_operations=benchmark_ops_count, verbose=True)
-        for name, instance in self.initialized_structures.items(): self._revert_instance_restrictions(instance, name)
-        print(f"\n📋 Gerando Relatórios/Gráficos para Restrição: {self.active_restriction_name}...")
-        self._generate_performance_report_table();
-        self._generate_comparison_charts();
+
+        # Reverte restrições de instância APÓS os benchmarks de operações
+        for name, instance in self.initialized_structures.items():
+            self._revert_instance_restrictions(instance, name)
+
+        print(f"\n📋 Gerando Relatórios e Gráficos para Restrição: {self.active_restriction_name}...")
+        self._generate_performance_report_table()
+        self._generate_comparison_charts()
         self._generate_insertion_evolution_charts()
+
         if run_scalability_flag:
+            # _prepare_and_configure_for_restriction já foi chamado e configurou os parâmetros
+            # que _get_structure_prototypes e _apply_instance_restrictions usarão dentro de run_scalability_tests
             self.run_scalability_tests(sizes_to_test=scalability_sizes, verbose=True)
             print(f"\n📈 Gerando Gráficos de Escalabilidade para Restrição: {self.active_restriction_name}...")
             self._generate_scalability_charts(log_scale_plots=True)
-        PerformanceMetrics.simulated_operation_delay_seconds = original_op_delay;
-        restricao_processamento.SIMULATED_EXTRA_COMPUTATION_LOOPS = original_extra_loops
-        if self.active_restriction_config and self.active_restriction_config.get("tipo_categoria") in ["processamento",
-                                                                                                       "latencia"]: print(
-            "INFO: Restrições de proc/lat revertidas.")
-        self._prepare_and_configure_for_restriction(None)
+
+        self._prepare_and_configure_for_restriction(None)  # Reseta tudo ao final da suíte de restrição
         print(f"\n{'=' * 10} SUÍTE COM RESTRIÇÃO {restriction_config.get('nome', 'N/A')} CONCLUÍDA {'=' * 10}")
 
     def run_full_analysis_suite(self, init_sample_size: Optional[int] = 1000, benchmark_ops_count: int = 100):
-        # ... (Como na última resposta COMPLETA) ...
         print("\n🚀 SUÍTE DE ANÁLISE PADRÃO (SEM RESTRIÇÕES) 🚀")
         self._prepare_and_configure_for_restriction(None)
         self.initialize_all_structures(sample_size=init_sample_size)
-        # Não aplicamos _apply_instance_restrictions aqui para o padrão, a menos que A1 seja um padrão desejado.
+        # Para benchmarks padrão, normalmente não aplicamos restrições como A1,
+        # A menos que a A1 fosse um comportamento padrão desejado para as árvores.
+        # Se for específico de uma restrição, _apply_instance_restrictions não é chamado aqui.
         self.run_benchmark_operations(num_operations=benchmark_ops_count)
         print("\n📋 Gerando Relatórios e Gráficos Padrão...");
         self._generate_performance_report_table()
@@ -895,7 +658,7 @@ class StructureAnalyzer:
         print("\n🏁 Análise Padrão Concluída! 🏁")
 
 
-# (CONFIGURACOES_TESTES_RESTRICAO como definido anteriormente com 10 testes)
+# (COLE CONFIGURACOES_TESTES_RESTRICAO ATUALIZADO com 10 itens AQUI)
 CONFIGURACOES_TESTES_RESTRICAO = {
     "D1_precos_corrompidos": {"nome": "Dados: Preços Corrompidos (10%, Outlier 3x)", "categoria": "Dados",
                               "tipo_categoria": "dados", "tipo": "corromper_precos",
@@ -928,9 +691,8 @@ CONFIGURACOES_TESTES_RESTRICAO = {
 }
 
 
-# (main_menu_loop, main, e if __name__ como na última versão funcional)
+# (COLE main_menu_loop, main, e if __name__ DA ÚLTIMA RESPOSTA COMPLETA AQUI)
 def main_menu_loop(analyzer: StructureAnalyzer, full_dataset: List[Moto]):
-    # ... (COPIE O main_menu_loop DA ÚLTIMA VERSÃO COMPLETA E FUNCIONAL) ...
     while True:
         print("\n" + "=" * 50 + "\nSISTEMA DE ANÁLISE DE ESTRUTURAS DE DADOS\n" + "=" * 50)
         print("--- GERENCIAR ESTRUTURAS INDIVIDUAIS ---")
@@ -952,32 +714,36 @@ def main_menu_loop(analyzer: StructureAnalyzer, full_dataset: List[Moto]):
                      '3': ('HashTable', "TABELA HASH"),
                      '4': ('BloomFilter', "BLOOM FILTER"), '5': ('RadixTree', "RADIX TREE"), '6': ('BTree', "ÁRVORE B")}
             s_key, s_name = s_map[escolha]
-            if not analyzer.initialized_structures.get(
-                    s_key) and not analyzer.active_restriction_config:  # Só pergunta se não estiver em modo restrição
-                print(f"\nAVISO: {s_name} não inicializada.");
-                print("  Execute Opção 7 (Suíte Completa) ou 8 (Escalabilidade) para popular as estruturas, ou:")
+            # Garante que, se estivermos em modo de restrição, não tentamos re-inicializar tudo aqui,
+            # pois a restrição já foi aplicada. O menu individual deve mostrar o estado atual da restrição.
+            if not analyzer.initialized_structures.get(s_key) and analyzer.active_restriction_config is None:
+                print(f"\nAVISO: {s_name} não inicializada (ou resetada).")
+                print(
+                    "  Execute Opção 7 (Suíte Completa) ou 8 (Escalabilidade) para popular as estruturas com dados padrão, ou:")
                 default_s = (analyzer.last_init_sample_size if analyzer.last_init_sample_size is not None else 1000)
                 if input(
-                        f"  Deseja inicializar TODAS as estruturas agora com uma amostra ({default_s})? (s/n): ").lower() == 's':
-                    analyzer._prepare_and_configure_for_restriction(None)
+                        f"  Deseja inicializar TODAS as estruturas agora com amostra padrão ({default_s}) para visualização? (s/n): ").lower() == 's':
+                    analyzer._prepare_and_configure_for_restriction(
+                        None)  # Garante que está em modo sem restrição para este init
                     analyzer.initialize_all_structures(sample_size=default_s, verbose=True)
 
             current_struct_instance = analyzer.initialized_structures.get(s_key)
-            if not current_struct_instance:  # Se ainda não inicializada mesmo após prompt
-                print(f"{s_name} ainda não inicializada. Voltando ao menu.");
+            if not current_struct_instance:
+                print(
+                    f"{s_name} não está pronta. Se uma restrição está ativa, ela pode não ter sido inicializada. Tente a Opção 9 primeiro ou a Opção 7 para modo padrão.");
                 continue
 
-            # Aplica restrições de instância para visualização, se houver
-            analyzer._apply_instance_restrictions(current_struct_instance, s_key)
-            menu_estrutura(current_struct_instance, s_name, analyzer.motorcycles_full_dataset_original)
-            analyzer._revert_instance_restrictions(current_struct_instance,
-                                                   s_key)  # Reverte após sair do menu_estrutura
+            analyzer._apply_instance_restrictions(current_struct_instance,
+                                                  s_key)  # Aplica restrições de instância se houver
+            menu_estrutura(current_struct_instance, s_name,
+                           analyzer.motorcycles_full_dataset_original)  # Sempre passa o original para referência
+            analyzer._revert_instance_restrictions(current_struct_instance, s_key)  # Reverte para o estado normal
 
         elif escolha == '7':
             try:
                 default_init_s = analyzer.last_init_sample_size if analyzer.last_init_sample_size is not None else 1000
                 init_s_str = input(
-                    f"Tamanho da amostra para benchmarks padrão (Padrão {default_init_s}. VAZIO para dataset completo): ").strip()
+                    f"Amostra para benchmarks padrão (Padrão {default_init_s}. VAZIO para dataset completo): ").strip()
                 init_samp: Optional[int] = None
                 if not init_s_str:
                     init_samp = None
@@ -985,15 +751,18 @@ def main_menu_loop(analyzer: StructureAnalyzer, full_dataset: List[Moto]):
                     init_samp = int(init_s_str)
                 if init_samp is not None and init_samp <= 0: init_samp = None; print(
                     "INFO: Amostra inválida, usando dataset completo.")
+
                 bench_ops_s = input(f"Número de operações para benchmarks padrão (padrão 100): ").strip()
-                bench_ops = int(bench_ops_s) if bench_ops_s else 100
+                bench_ops = int(bench_ops_s) if bench_ops_s and bench_ops_s.isdigit() else 100
                 if bench_ops < 0: bench_ops = 100; print("INFO: Número de operações inválido, usando 100.")
+
                 analyzer.run_full_analysis_suite(init_sample_size=init_samp, benchmark_ops_count=bench_ops)
             except ValueError:
                 print("ERRO: Entrada inválida. Executando com padrões (Amostra: Dataset Completo, Bench Ops: 100).")
                 analyzer.run_full_analysis_suite(init_sample_size=None, benchmark_ops_count=100)
             except Exception as e:
-                print(f"Ocorreu um erro inesperado: {e}")
+                print(f"Ocorreu um erro inesperado ao executar a suíte de análise: {e}")
+
         elif escolha == '8':
             try:
                 print("\n--- Configurar Testes de Escalabilidade ---")
@@ -1007,73 +776,100 @@ def main_menu_loop(analyzer: StructureAnalyzer, full_dataset: List[Moto]):
                         print("AVISO: Formato de Ns inválido. Usando padrão.")
                 else:
                     print("INFO: Usando Ns padrão para escalabilidade.")
-                num_searches_str = input("# Buscas por N (padrão 100): ").strip();
+
+                num_searches_str = input("Número de buscas aleatórias por tamanho N (padrão 100): ").strip();
                 num_s = int(num_searches_str) if num_searches_str and num_searches_str.isdigit() else 100
                 if num_s < 0: num_s = 100; print("INFO: # Buscas inválido, usando 100.")
-                log_s = input("Escala Log para TEMPO? (s/n, padrão s): ").strip().lower();
+
+                log_s = input(
+                    "Usar escala logarítmica para eixos Y dos gráficos de TEMPO? (s/n, padrão s): ").strip().lower();
                 log_sc = not log_s or log_s == 's'
-                analyzer._prepare_and_configure_for_restriction(None)
+
+                analyzer._prepare_and_configure_for_restriction(None)  # Garante modo padrão para escalabilidade
                 analyzer.run_scalability_tests(sizes_to_test=sizes_to_test_input, num_searches_per_size=num_s,
                                                verbose=True)
                 print("\n📈 Gerando Gráficos Escalabilidade...");
                 analyzer._generate_scalability_charts(log_scale_plots=log_sc)
             except ValueError:
-                print("ERRO: Entrada inválida.")
+                print("ERRO: Entrada inválida para parâmetros de escalabilidade.")
             except Exception as e:
-                print(f"Erro inesperado: {e}")
+                print(f"Erro inesperado durante os testes de escalabilidade: {e}")
+
         elif escolha == '9':
             submenu_testes_restricao(analyzer, CONFIGURACOES_TESTES_RESTRICAO)
+
         elif escolha == '10':
-            if not analyzer.performance_results and not analyzer.scalability_results:
-                print("\nNenhum resultado de init/bench disponível."); print("Execute Opção 7 ou 8 primeiro.");
-            elif not any(isinstance(analyzer.performance_results.get(res_name, {}).get('initialization', {}).get(
-                'insertion_evolution_data'), list) for res_name in analyzer.performance_results):
-                print("\nDados de evolução da init não disponíveis (Opção 7).")
+            # Verifica se performance_results e a chave initialization existem e se insertion_evolution_data é uma lista
+            if not analyzer.performance_results or \
+                    not any(isinstance(analyzer.performance_results.get(res_name, {}).get('initialization', {}).get(
+                        'insertion_evolution_data'), list)
+                            for res_name in analyzer.performance_results):
+                print("\nNenhum dado de evolução da inicialização disponível.")
+                print("Execute a Opção 7 (Suíte Completa) ou uma Suíte com Restrição (Opção 9) primeiro.")
             else:
                 analyzer._generate_insertion_evolution_charts()
+
+
         elif escolha == '11':
             if not full_dataset:
-                print("\nDataset vazio.")
+                print("\nDataset está vazio.")
             else:
                 MotoEstatisticas.gerar_graficos(full_dataset)
-        elif escolha == '12':  # Tendências
+
+        elif escolha == '12':
             if not full_dataset:
                 print("\nDataset está vazio.")
             else:
                 try:
-                    anos_f_str = input("Anos no futuro para prever? ")  # Corrigido: input em linha separada
+                    anos_f_str = input("Anos no futuro para prever? ")
                     anos_f = int(anos_f_str)
                     if anos_f > 0:
                         MotoEstatisticas.prever_tendencias(full_dataset, anos_f)
                     else:
                         print("Número de anos deve ser positivo.")
-                except ValueError:  # Corrigido: indentação correta do except
+                except ValueError:
                     print("Entrada inválida para anos.")
+
         elif escolha == '0':
-            print("\nEncerrando... 👋"); break
+            print("\nEncerrando sistema... Até logo! 👋");
+            break
         else:
-            print("\n❌ Opção inválida!")
-        if escolha != '0': input("\nPressione Enter para continuar...")
+            print("\n❌ Opção inválida! Por favor, tente novamente.")
+
+        if escolha != '0':
+            input("\nPressione Enter para continuar...")
 
 
 def main():
-    print("=" * 50 + "\nBem-vindo ao Sistema de Análise!\n" + "=" * 50)
+    print("=" * 50 + "\nBem-vindo ao Sistema Avançado de Análise de Desempenho de Estruturas de Dados!\n" + "=" * 50)
     d_path = os.path.join('data', 'bike_sales_india.csv')
-    if not os.path.exists(d_path): print(
-        f"ERRO CRÍTICO: Dataset '{os.path.abspath(d_path)}' não encontrado!"); sys.exit(1)
-    print(f"\nCarregando dataset de '{d_path}'...");
+    if not os.path.exists(d_path):
+        print(f"ERRO CRÍTICO: Arquivo de dataset não encontrado em '{os.path.abspath(d_path)}'")
+        sys.exit(1)
+    print(f"\nCarregando dataset de motocicletas de '{d_path}'...")
     motos_ds = DataHandler.ler_dataset(d_path)
-    if not motos_ds: print("ERRO CRÍTICO: Nenhum dado carregado."); sys.exit(1)
-    print(f"Dataset carregado: {len(motos_ds)} registros.");
+    if not motos_ds:
+        print("ERRO CRÍTICO: Nenhum dado foi carregado do dataset ou o dataset está vazio.")
+        sys.exit(1)
+    print(f"Dataset carregado com {len(motos_ds)} registros.")
     analyzer = StructureAnalyzer(motos_ds)
+
     if not analyzer.initialized_structures and not analyzer.scalability_results:
-        print("\nDica: Nenhuma estrutura inicializada ou testada. Use Opções 7, 8 ou 9.");
+        print("\nDica: Nenhuma estrutura foi inicializada ou testada ainda.")
+        print("  - Use a Opção 7 para benchmarks padrão.")
+        print("  - Use a Opção 8 para testes de escalabilidade.")
+        print("  - Use a Opção 9 para testes com restrições.")
+        print("  - Ao selecionar uma estrutura individual (1-6), você poderá inicializar todas se desejar.")
+
     main_menu_loop(analyzer, motos_ds)
 
 
 if __name__ == "__main__":
     try:
-        import matplotlib; matplotlib.use('TkAgg');  # print("INFO: Usando backend Matplotlib TkAgg.")
+        import matplotlib
+
+        matplotlib.use('TkAgg')
     except Exception as e:
-        print(f"AVISO: Problema ao configurar backend Matplotlib: {e}.")
+        print(f"AVISO: Problema ao configurar backend 'TkAgg' do Matplotlib: {e}. "
+              "Os gráficos podem não ser exibidos interativamente ou podem precisar de configuração manual do backend (ex: MPLBACKEND).")
     main()

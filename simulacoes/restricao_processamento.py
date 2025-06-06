@@ -1,29 +1,38 @@
 # simulacoes/restricao_processamento.py
 import random
-import time
+import time  # Mantido caso você adicione delays específicos de processamento no futuro
+from typing import Optional
 
-SIMULATED_CPU_SLOWDOWN_FACTOR = 0.0 # Para um tipo de lentidão baseado em delay fixo por operação
+# Apenas SIMULATED_EXTRA_COMPUTATION_LOOPS é usado ativamente pelo PerformanceMetrics
 SIMULATED_EXTRA_COMPUTATION_LOOPS = 0
 
-def configurar_lentidao_cpu_delay(delay_segundos: float = 0.001): # Nome mais específico
-    """Configura um DELAY fixo para ser adicionado a operações em PerformanceMetrics."""
-    global SIMULATED_CPU_SLOWDOWN_FACTOR # Reutilizando, mas com semântica de delay agora
-    SIMULATED_CPU_SLOWDOWN_FACTOR = delay_segundos # Agora é o delay direto em segundos
-    if delay_segundos > 0:
-        print(f"INFO: Delay de CPU simulado configurado para {delay_segundos*1000:.2f} ms por operação (via PerformanceMetrics).")
-    else:
-        print("INFO: Delay de CPU simulado desativado.")
-    # Esta função só define o fator. PerformanceMetrics precisa usá-lo.
 
-def configurar_carga_computacional_extra(num_loops_extras: int = 10000):
+def configurar_carga_computacional_extra(num_loops_extras: Optional[int] = 0):  # Default 0 para desligar
+    """Configura um número de loops computacionais extras para simular carga de CPU."""
     global SIMULATED_EXTRA_COMPUTATION_LOOPS
-    SIMULATED_EXTRA_COMPUTATION_LOOPS = num_loops_extras
-    if num_loops_extras > 0:
-        print(f"INFO: Carga computacional extra configurada com {num_loops_extras} loops por operação.")
+    if num_loops_extras is None or num_loops_extras < 0:
+        SIMULATED_EXTRA_COMPUTATION_LOOPS = 0
     else:
-        print("INFO: Carga computacional extra desativada.")
+        SIMULATED_EXTRA_COMPUTATION_LOOPS = num_loops_extras
+
+    if SIMULATED_EXTRA_COMPUTATION_LOOPS > 0:
+        print(
+            f"INFO (Restrição Processamento): Carga de CPU extra configurada com {SIMULATED_EXTRA_COMPUTATION_LOOPS} loops por operação.")
+    else:
+        print("INFO (Restrição Processamento): Carga de CPU extra desativada/resetada.")
+
 
 def executar_carga_computacional_extra():
+    """Executa um número configurado de operações 'inúteis' para simular carga."""
     if SIMULATED_EXTRA_COMPUTATION_LOOPS > 0:
+        # Usar uma semente baseada no tempo pode dar variabilidade, mas para consistência entre chamadas
+        # dentro do mesmo teste de restrição, não mudar a semente aqui é melhor.
+        # random.seed(time.time_ns()) # Opcional para maior aleatoriedade, mas pode dificultar reprodutibilidade exata.
         for _ in range(SIMULATED_EXTRA_COMPUTATION_LOOPS):
-            _ = pow(random.random() + 0.1, random.random() + 0.1) # Evitar log(0) ou base 0
+            _ = pow(random.random() + 0.1, random.random() + 0.1)
+
+
+def resetar_restricoes_processamento() -> None:
+    """Reseta as configurações de restrição de processamento para o padrão."""
+    configurar_carga_computacional_extra(0)  # Chama a função de configuração com 0
+    # print("INFO (Restrição Processamento): Restrições de processamento resetadas.") # Opcional, já impresso por configurar_

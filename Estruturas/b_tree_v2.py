@@ -65,45 +65,91 @@ class BTreeV2:
         full_child_node.keys[self.t - 1] = None
         parent_node.n += 1
 
-    def _insert_non_full(self, node: BTreeNodeV2, key: Moto) -> bool:  # ... (sem mudanças)
-        i = node.n - 1
-        if node.leaf:
-            while i >= 0 and node.keys[i] is not None and key < node.keys[i]: node.keys[i + 1] = node.keys[i];i -= 1
-            if (i + 1 < node.n) and node.keys[i + 1] is not None and node.keys[i + 1] == key: return False
-            node.keys[i + 1] = key;
-            node.n += 1;
+    def _insert_non_full(self, node_to_insert_in: BTreeNodeV2, key_to_insert: Moto) -> bool:
+        i = node_to_insert_in.n - 1  # Índice da última chave válida
+
+        if node_to_insert_in.leaf:
+            # Desloca chaves maiores para a direita para abrir espaço
+            # Garantir que estamos comparando apenas com chaves válidas (não None)
+            while i >= 0 and node_to_insert_in.keys[i] is not None and \
+                    key_to_insert < node_to_insert_in.keys[i]:  # key_to_insert é Moto, keys[i] deve ser Moto
+                node_to_insert_in.keys[i + 1] = node_to_insert_in.keys[i]
+                i -= 1
+
+            # Posição de inserção é i + 1
+            # Verifica se já existe uma chave EXATAMENTE IGUAL nessa posição (para duplicatas)
+            # Isso só acontece se keys[i+1] não for None e for igual
+            if (i + 1 < node_to_insert_in.n and  # Checa se i+1 está dentro das chaves existentes
+                    node_to_insert_in.keys[i + 1] is not None and
+                    node_to_insert_in.keys[i + 1] == key_to_insert):
+                return False  # Duplicata exata, não inseriu de novo
+
+            node_to_insert_in.keys[i + 1] = key_to_insert
+            node_to_insert_in.n += 1
             return True
-        else:
-            while i >= 0 and node.keys[i] is not None and key < node.keys[i]: i -= 1
-            i += 1;
-            child_desc = node.children[i]
-            if child_desc is None: return False  # Should not happen in valid BTree
-            if child_desc.n == (2 * self.t - 1): self._split_child(node, i)
-            if key > node.keys[i]: i += 1
-            return self._insert_non_full(node.children[i], key)
+        else:  # Nó não é folha
+            # Encontra o filho onde a nova chave deve ser inserida
+            while i >= 0 and node_to_insert_in.keys[i] is not None and \
+                    key_to_insert < node_to_insert_in.keys[i]:  # key_to_insert é Moto, keys[i] deve ser Moto
+                i -= 1
+
+            # Após o loop, 'i' é o índice da chave que é <= key_to_insert (ou -1 se todas são >)
+            # O filho para descer é children[i+1]
+            child_descent_index = i + 1
+
+            child_to_descend = node_to_insert_in.children[child_descent_index]
+            if child_to_descend is None:  # Sanity check, não deveria ocorrer
+                print(f"ERRO BTree: Filho em children[{child_descent_index}] é None durante insert_non_full.")
+                return False  # Falha na inserção
+
+            if child_to_descend.n == (2 * self.t - 1):  # Se o filho está cheio
+                self._split_child(node_to_insert_in, child_descent_index)  # Divide children[child_descent_index]
+                # Após o split, node_to_insert_in.keys[child_descent_index] é a nova chave mediana que subiu.
+                # Precisamos reavaliar para qual filho descer:
+                # Se key_to_insert é maior que a nova chave mediana, o índice do filho aumenta.
+
+                # Adiciona verificação crucial:
+                if node_to_insert_in.keys[child_descent_index] is None:
+                    print(
+                        f"ERRO CRÍTICO BTree: Chave em keys[{child_descent_index}] é None após split. Pai: {node_to_insert_in}")
+                    # Este é um estado inconsistente, idealmente não deveria acontecer.
+                    # Para evitar o crash, podemos tentar uma heurística, mas é um bug.
+                    # Ex: se a chave que subiu é None, talvez a key_to_insert seja menor e vá para o filho esquerdo (original child_descent_index)
+                    # ou maior e vá para o filho direito (child_descent_index + 1).
+                    # Como fallback, vamos assumir que vai para o filho da esquerda se não pudermos comparar.
+                elif key_to_insert > node_to_insert_in.keys[child_descent_index]:
+                    child_descent_index += 1
+
+            return self._insert_non_full(node_to_insert_in.children[child_descent_index], key_to_insert)
 
     def inserir(self, key_to_insert: Moto) -> bool:
-        if self.max_elements is not None and self._count >= self.max_elements:  # MODIFICADO: Checa M1
+        if self.max_elements is not None and self._count >= self.max_elements:
             return False
 
         if self.root is None:
-            self.root = BTreeNodeV2(self.t, leaf=True);
-            self.root.keys[0] = key_to_insert;
-            self.root.n = 1;
+            self.root = BTreeNodeV2(self.t, leaf=True)
+            self.root.keys[0] = key_to_insert
+            self.root.n = 1
             self._count = 1
             return True
 
-        current_root = self.root;
+        current_root = self.root
         inserted_flag = False
-        if current_root.n == (2 * self.t - 1):
-            new_root = BTreeNodeV2(self.t, leaf=False);
-            new_root.children[0] = current_root;
-            self.root = new_root
-            self._split_child(new_root, 0);
-            inserted_flag = self._insert_non_full(new_root, key_to_insert)
-        else:
+        if current_root.n == (2 * self.t - 1):  # Raiz está cheia
+            new_root_node = BTreeNodeV2(self.t, leaf=False)
+            new_root_node.children[0] = current_root
+            self.root = new_root_node  # Nova raiz
+            self._split_child(new_root_node, 0)  # Divide a raiz antiga (filho 0 da nova)
+            # Agora new_root_node tem 1 chave e 2 filhos.
+            # A chave que subiu está em new_root_node.keys[0]
+            # Decide em qual dos dois filhos (children[0] ou children[1]) da nova raiz inserir.
+            # Esta lógica já está implícita em _insert_non_full
+            inserted_flag = self._insert_non_full(new_root_node, key_to_insert)
+        else:  # Raiz não está cheia
             inserted_flag = self._insert_non_full(current_root, key_to_insert)
-        if inserted_flag: self._count += 1
+
+        if inserted_flag:
+            self._count += 1
         return inserted_flag
 
     def remover(self, key_to_remove: Moto) -> bool:
