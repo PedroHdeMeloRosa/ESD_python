@@ -13,9 +13,6 @@ import copy
 # Importações de simulações
 from simulacoes import restricao_dados
 from simulacoes import restricao_processamento
-from simulacoes import restricao_latencia
-from simulacoes import restricao_memoria
-from simulacoes import restricao_algoritmica
 
 from modelos.data_handler import DataHandler
 from Estruturas.linked_list import LinkedList
@@ -32,21 +29,17 @@ class PerformanceMetrics:
     @staticmethod
     def measure(func: Callable, *args, **kwargs) -> Dict[str, Any]:
         restricao_processamento.executar_carga_computacional_extra()
-        restricao_latencia.aplicar_delay_operacao_se_configurado()
-
         tracemalloc.start()
         start_time = time.perf_counter()
-        result = func(*args, **kwargs)  # Executa a função original da estrutura
+        result = func(*args, **kwargs)
         measured_time_ms = (time.perf_counter() - start_time) * 1000
-
         current, peak = tracemalloc.get_traced_memory()
         tracemalloc.stop()
-
         return {
             'time': measured_time_ms,
-            'current_memory': current / 1024.0,
-            'peak_memory': peak / 1024.0,
-            'result': result  # Importante para saber se a inserção/remoção teve sucesso
+            'current_memory': current / 1024,
+            'peak_memory': peak / 1024,
+            'result': result
         }
 
 
@@ -55,196 +48,100 @@ class StructureAnalyzer:
         self.motorcycles_full_dataset_original: List[Moto] = motorcycles_dataset
         self.current_dataset_for_analysis: List[Moto] = copy.deepcopy(motorcycles_dataset)
         self.t_btree = 3
-        self.active_restriction_config: Optional[Dict[str, Any]] = None
-        # self.structures_prototypes é uma property para ser dinâmica
+        self.structures_prototypes: Dict[str, Callable[[], Any]] = {
+            'LinkedList': LinkedList, 'AVLTree': AVLTree,
+            'HashTable': lambda: HashTable(capacidade=max(101,
+                                                          len(self.current_dataset_for_analysis) // 10 if self.current_dataset_for_analysis and len(
+                                                              self.current_dataset_for_analysis) > 0 else 101)),
+            'BloomFilter': lambda: BloomFilter(
+                num_itens_esperados=len(self.current_dataset_for_analysis) if self.current_dataset_for_analysis and len(
+                    self.current_dataset_for_analysis) > 0 else 1000),
+            'RadixTree': RadixTree, 'BTree': lambda: BTreeV2(t=self.t_btree)
+        }
         self.initialized_structures: Dict[str, Any] = {}
         self.performance_results: Dict[str, Dict[str, Any]] = {}
         self.last_init_sample_size: Optional[int] = None
         self.scalability_results: Dict[str, List[Dict[str, Any]]] = {}
-        self.active_restriction_name: Optional[str] = None  # Para nomear relatórios/gráficos
+        self.active_restriction_name: Optional[str] = None
 
-    @property
-    def structures_prototypes(self) -> Dict[str, Callable[[], Any]]:
-        """Retorna os protótipos das estruturas, aplicando restrições de construtor dinamicamente."""
-        # Obtém parâmetros de restrição dos módulos de simulação
-        ht_fator_override = restricao_algoritmica.obter_hash_fator_carga_override()
-        ll_capacidade_override = restricao_memoria.obter_capacidade_lista_lru()
-        max_elements_override = restricao_memoria.obter_limite_max_elementos()
-
-        dataset_len = len(self.current_dataset_for_analysis) if self.current_dataset_for_analysis else 0
-        ht_cap_base = max(101, dataset_len // 10 if dataset_len > 0 else 101)
-        bf_items_base = dataset_len if dataset_len > 0 else 1000
-
-        final_ht_fator_carga = ht_fator_override if ht_fator_override is not None else 0.7
-
-        return {
-            'LinkedList': lambda: LinkedList(capacidade_maxima=ll_capacidade_override),
-            'AVLTree': lambda: AVLTree(max_elements=max_elements_override),
-            'HashTable': lambda: HashTable(capacidade=ht_cap_base, fator_carga_max=final_ht_fator_carga),
-            'BloomFilter': lambda: BloomFilter(num_itens_esperados=bf_items_base),
-            'RadixTree': lambda: RadixTree(max_elements=max_elements_override),  # Assumindo RadixTree foi modificada
-            'BTree': lambda: BTreeV2(t=self.t_btree, max_elements=max_elements_override)
-        }
-
-    def _apply_instance_restrictions(self, instance: Any, struct_name: str):
-        """Aplica restrições que afetam uma instância após a criação."""
-        if self.active_restriction_config:
-            limit_passos = restricao_algoritmica.obter_limite_passos_busca_arvore()
-            if limit_passos is not None:
-                if struct_name in ["AVLTree", "BTree"] and hasattr(instance, 'set_search_step_limit'):
-                    instance.set_search_step_limit(limit_passos)
-
-    def _revert_instance_restrictions(self, instance: Any, struct_name: str):
-        """Reverte restrições de instância."""
-        if struct_name in ["AVLTree", "BTree"] and hasattr(instance, 'set_search_step_limit'):
-            instance.set_search_step_limit(None)  # Reverte para sem limite
-
-    def _prepare_and_configure_for_restriction(self, restriction_config: Optional[Dict[str, Any]]):
-        """Prepara o ambiente para uma suíte de teste (com ou sem restrição)."""
+    def _prepare_dataset_for_analysis(self, restriction_config: Optional[Dict[str, Any]] = None) -> None:
         self.current_dataset_for_analysis = copy.deepcopy(self.motorcycles_full_dataset_original)
-        self.active_restriction_name = None
-        self.active_restriction_config = None
-
-        restricao_processamento.configurar_carga_computacional_extra(0)
-        restricao_latencia.configurar_delay_operacao_constante(None)
-        restricao_latencia.configurar_insercao_lote(None, None)
-        restricao_memoria.configurar_limite_max_elementos(None)
-        restricao_memoria.configurar_descarte_lru_lista(None)
-        restricao_algoritmica.configurar_hash_fator_carga_baixo(None)
-        restricao_algoritmica.configurar_limite_passos_busca_arvore(None)
-
         if restriction_config:
-            self.active_restriction_config = restriction_config
             self.active_restriction_name = restriction_config.get("nome", "RestricaoDesconhecida")
-            cat = restriction_config.get("tipo_categoria")
-            tipo_subtipo = restriction_config.get("tipo") or restriction_config.get("subtipo")
+            tipo = restriction_config.get("tipo")
             params = restriction_config.get("params", {})
-            print(
-                f"\nINFO: Configurando para restrição: {self.active_restriction_name} ({cat}/{tipo_subtipo}) c/ params {params}")
-
-            if cat == "dados":
-                if tipo_subtipo == "corromper_precos":
-                    self.current_dataset_for_analysis = restricao_dados.corromper_precos_aleatoriamente(
-                        self.current_dataset_for_analysis, **params)
-                elif tipo_subtipo == "anos_anomalos":
-                    self.current_dataset_for_analysis = restricao_dados.introduzir_anos_anomalos(
-                        self.current_dataset_for_analysis, **params)
-            elif cat == "processamento":
-                restricao_processamento.configurar_carga_computacional_extra(params.get("num_loops_extras", 0))
-            elif cat == "latencia":
-                if tipo_subtipo == "delay_operacao_constante":
-                    restricao_latencia.configurar_delay_operacao_constante(params.get("delay_segundos"))
-                elif tipo_subtipo == "insercao_lote_com_delay":
-                    restricao_latencia.configurar_insercao_lote(params.get("tamanho_lote"),
-                                                                params.get("delay_por_lote_segundos"))
-            elif cat == "memoria":
-                if tipo_subtipo == "limite_max_elementos":
-                    restricao_memoria.configurar_limite_max_elementos(params.get("max_elementos"))
-                elif tipo_subtipo == "descarte_lru_lista":
-                    restricao_memoria.configurar_descarte_lru_lista(params.get("capacidade_lista"))
-            elif cat == "algoritmica":
-                if tipo_subtipo == "hash_fator_carga_baixo":
-                    restricao_algoritmica.configurar_hash_fator_carga_baixo(params.get("fator_carga_max"))
-                elif tipo_subtipo == "limite_passos_busca_arvore":
-                    restricao_algoritmica.configurar_limite_passos_busca_arvore(params.get("max_passos"))
-        # A property self.structures_prototypes será chamada em initialize_all_structures e run_scalability_tests
+            print(f"\nINFO: Aplicando restrição de dados: {self.active_restriction_name} com params {params}")
+            if tipo == "corromper_precos":
+                self.current_dataset_for_analysis = restricao_dados.corromper_precos_aleatoriamente(
+                    self.current_dataset_for_analysis, **params)
+            elif tipo == "anos_anomalos":
+                self.current_dataset_for_analysis = restricao_dados.introduzir_anos_anomalos(
+                    self.current_dataset_for_analysis, **params)
+            else:
+                print(f"AVISO: Tipo de restrição de dados '{tipo}' não reconhecido.")
+        else:
+            self.active_restriction_name = None
 
     def initialize_all_structures(self, sample_size: Optional[int] = None, verbose: bool = True) -> None:
         if not self.current_dataset_for_analysis:
-            if verbose: print("Dataset de análise atual está vazio."); return
+            if verbose: print("Dataset de análise atual está vazio. Não é possível inicializar."); return
 
-        actual_sample_size_requested = len(self.current_dataset_for_analysis) if sample_size is None \
-            else min(sample_size, len(self.current_dataset_for_analysis))
+        if sample_size is None:
+            actual_sample_size = len(self.current_dataset_for_analysis)
+            sample_to_insert = self.current_dataset_for_analysis
+        else:
+            actual_sample_size = min(sample_size, len(self.current_dataset_for_analysis))
+            if actual_sample_size <= 0:
+                if verbose: print(
+                    f"AVISO: Tamanho da amostra ({actual_sample_size}) inválido. Usando dataset completo ou mínimo.");
+                actual_sample_size = len(self.current_dataset_for_analysis) if len(
+                    self.current_dataset_for_analysis) > 0 else 1
+                if not self.current_dataset_for_analysis and actual_sample_size == 1:
+                    if verbose: print("Dataset de análise realmente vazio. Cancelando inicialização."); return
+            sample_to_insert = random.sample(self.current_dataset_for_analysis,
+                                             actual_sample_size) if actual_sample_size > 0 else []
 
-        final_sample_size_for_init = actual_sample_size_requested
-        # Restrição M1 (limite_max_elementos) aplicada globalmente pelo módulo de simulação
-        # Se a estrutura for criada com max_elements, ela se auto-limitará.
-        # O `sample_to_insert` ainda pode ser maior que o limite da estrutura.
-        max_elements_restr = restricao_memoria.obter_limite_max_elementos()
-        if max_elements_restr is not None:
-            final_sample_size_for_init = min(actual_sample_size_requested, max_elements_restr)
-            if verbose and final_sample_size_for_init < actual_sample_size_requested:
-                print(
-                    f"INFO: Amostra para inicialização limitada a {final_sample_size_for_init} por restrição de máx. elementos ({max_elements_restr}).")
+        self.last_init_sample_size = actual_sample_size
 
-        sample_to_insert = []
-        if final_sample_size_for_init > 0 and len(self.current_dataset_for_analysis) > 0:
-            # Garante que k não é maior que a população
-            k_sample = min(final_sample_size_for_init, len(self.current_dataset_for_analysis))
-            if k_sample > 0:
-                sample_to_insert = random.sample(self.current_dataset_for_analysis, k=k_sample)
+        dataset_info = f"(Dataset: {self.active_restriction_name or 'Original'})"
+        if verbose: print(
+            f"\n⏳ Inicializando estruturas com {actual_sample_size} motos {dataset_info} e medindo desempenho...")
 
-        if not sample_to_insert and final_sample_size_for_init > 0:
-            if verbose: print(
-                f"AVISO: Amostra para inserção ficou vazia (sample_size_for_init: {final_sample_size_for_init}, dataset_len: {len(self.current_dataset_for_analysis)}). Nenhuma inserção.")
-            final_sample_size_for_init = 0  # Corrige para 0 se não há o que inserir
-
-        self.last_init_sample_size = final_sample_size_for_init
-        ds_info = f"(Dataset: {self.active_restriction_name or 'Original'})"
-        if verbose: print(f"\n⏳ Inicializando com até {final_sample_size_for_init} motos {ds_info}...")
-        self.initialized_structures.clear();
+        self.initialized_structures.clear()
         self.performance_results.clear()
 
-        for name, constructor_factory in self.structures_prototypes.items():
+        for name, structure_constructor_factory in self.structures_prototypes.items():
             if verbose: print(f"\n  Inicializando {name}...")
-            structure_instance = constructor_factory()  # Cria instância com configs de restrição
-            self._apply_instance_restrictions(structure_instance, name)  # Aplica A1
+            structure_instance = structure_constructor_factory()
 
-            ins_metrics_list = [];
-            total_t_ins = 0.0;
-            max_peak_mem_overall = 0.0;
-            items_actually_inserted_in_struct = 0
+            insertion_metrics_list = []
+            total_insertion_time = 0.0
+            max_peak_memory_during_init = 0.0
 
-            batch_config = restricao_latencia.obter_config_insercao_lote();  # L2
-            batch_s = batch_config["tamanho_lote"] if batch_config else 1
-            delay_batch_s = batch_config["delay_por_lote_segundos"] if batch_config else 0.0
+            if actual_sample_size > 0:
+                for i, bike_to_insert in enumerate(sample_to_insert):
+                    if verbose and (i + 1) % (max(1, actual_sample_size // 10)) == 0:
+                        print(f"    Inserindo item {i + 1}/{actual_sample_size} em {name}...")
+                    metrics = PerformanceMetrics.measure(structure_instance.inserir, bike_to_insert)
+                    insertion_metrics_list.append({'time': metrics['time'], 'peak_memory': metrics['peak_memory']})
+                    total_insertion_time += metrics['time']
+                    if metrics['peak_memory'] > max_peak_memory_during_init:
+                        max_peak_memory_during_init = metrics['peak_memory']
 
-            current_items_in_loop = 0
-            if final_sample_size_for_init > 0 and sample_to_insert:
-                for i in range(0, len(sample_to_insert), batch_s):
-                    current_batch_to_insert = sample_to_insert[i: min(i + batch_s, len(sample_to_insert))]
-                    if not current_batch_to_insert: continue
-
-                    t_batch_start_for_timing = time.perf_counter()  # Para medir o tempo do lote
-                    for bike in current_batch_to_insert:
-                        # A estrutura DEVE se auto-limitar se 'max_elements' foi passado no seu construtor (M1)
-                        # ou se é a LinkedList com 'capacidade_maxima' (M2).
-                        # A contagem 'items_actually_inserted_in_struct' será feita com len(structure_instance) no final.
-                        metrics = PerformanceMetrics.measure(structure_instance.inserir, bike)
-                        ins_metrics_list.append({'time': metrics['time'], 'peak_memory': metrics['peak_memory']})
-                        if metrics['peak_memory'] > max_peak_mem_overall: max_peak_mem_overall = metrics['peak_memory']
-
-                    batch_t_ms = (time.perf_counter() - t_batch_start_for_timing) * 1000
-                    total_t_ins += batch_t_ms
-
-                    if batch_config and delay_batch_s > 0: time.sleep(
-                        delay_batch_s); total_t_ins += delay_batch_s * 1000
-                    current_items_in_loop += len(current_batch_to_insert)
-                    if verbose and (i // batch_s + 1) % (max(1, (len(sample_to_insert) // batch_s) // 10)) == 0: print(
-                        f"    Processado lote {(i // batch_s) + 1} ({len(current_batch_to_insert)} itens) em {name}...")
-
-            if hasattr(structure_instance, '__len__'):
-                try:
-                    items_actually_inserted_in_struct = len(structure_instance)
-                except:
-                    items_actually_inserted_in_struct = sum(
-                        1 for m in ins_metrics_list if m['time'] >= 0)  # Estimativa se __len__ falha
-            else:
-                items_actually_inserted_in_struct = sum(1 for m in ins_metrics_list if m['time'] >= 0)
-
-            denom = items_actually_inserted_in_struct if items_actually_inserted_in_struct > 0 else (
-                1 if total_t_ins > 0 else 0)
-            avg_ins_t = total_t_ins / denom if denom > 0 else 0.0
+            avg_insert_time = total_insertion_time / actual_sample_size if actual_sample_size > 0 else 0.0
 
             self.initialized_structures[name] = structure_instance
             self.performance_results[name] = {
-                'initialization': {'sample_size': items_actually_inserted_in_struct,
-                                   'total_time_ms': total_t_ins, 'avg_insert_time_ms': avg_ins_t,
-                                   'peak_memory_init_kb': max_peak_mem_overall,
-                                   'insertion_evolution_data': ins_metrics_list}}
+                'initialization': {
+                    'sample_size': actual_sample_size,
+                    'total_time_ms': total_insertion_time,
+                    'avg_insert_time_ms': avg_insert_time,
+                    'peak_memory_init_kb': max_peak_memory_during_init,
+                    'insertion_evolution_data': insertion_metrics_list
+                }
+            }
             if verbose: print(
-                f"  {name} inicializado ({items_actually_inserted_in_struct} itens). Média Ins.: {avg_ins_t:.4f} ms. Pico Mem (max indiv.): {max_peak_mem_overall:.2f} KB")
-            # Não reverter _apply_instance_restrictions aqui; será feito após benchmarks
+                f"  {name} inicializado. Média inserção: {avg_insert_time:.4f} ms. Pico Memória: {max_peak_memory_during_init:.2f} KB")
 
     def run_benchmark_operations(self, num_operations: int = 100, verbose: bool = True) -> None:
         if not self.initialized_structures:
@@ -266,79 +163,124 @@ class StructureAnalyzer:
         for name, structure in self.initialized_structures.items():
             if verbose: print(f"\n  Analisando {name}:")
             op_results_summary = {}
-
             if hasattr(structure, 'buscar'):
-                search_times, search_mems = [], []
-                for bike in sample_for_search_remove:
-                    metrics = PerformanceMetrics.measure(structure.buscar, bike)
-                    search_times.append(metrics['time'])
-                    search_mems.append(metrics['peak_memory'])
+                s_t, s_m = [], [];
+                for b in sample_for_search_remove: m = PerformanceMetrics.measure(structure.buscar, b); s_t.append(
+                    m['time']); s_m.append(m['peak_memory'])
                 op_results_summary['search_avg_time_ms'] = sum(
-                    search_times) / actual_num_operations if actual_num_operations else 0
-                op_results_summary['search_peak_memory_kb'] = max(search_mems) if search_mems else 0
+                    s_t) / actual_num_operations if actual_num_operations else 0.0
+                op_results_summary['search_peak_memory_kb'] = max(s_m) if s_m else 0.0
                 if verbose: print(f"    Busca: Tempo médio {op_results_summary['search_avg_time_ms']:.4f} ms")
-
             if hasattr(structure, 'inserir'):
-                insert_times, insert_mems = [], []
-                can_insert_more = True
-                if hasattr(structure, 'max_elements') and structure.max_elements is not None:
-                    if hasattr(structure, '__len__') and len(structure) >= structure.max_elements:
-                        can_insert_more = False
-
-                if can_insert_more:
-                    items_inserted_bench = 0
-                    for bike in sample_for_new_insertion:
-                        metrics = PerformanceMetrics.measure(structure.inserir, bike)
-                        if metrics.get('result', True) is not False:  # Assume None ou True é sucesso
-                            items_inserted_bench += 1
-                        insert_times.append(metrics['time'])
-                        insert_mems.append(metrics['peak_memory'])
-                    op_results_summary['new_insertion_avg_time_ms'] = sum(insert_times) / len(
-                        insert_times) if insert_times else 0.0
-                    op_results_summary['new_insertion_peak_memory_kb'] = max(insert_mems) if insert_mems else 0.0
-                    if verbose: print(
-                        f"    Nova Inserção ({items_inserted_bench} itens): Tempo médio {op_results_summary['new_insertion_avg_time_ms']:.4f} ms")
-                else:
-                    if verbose: print(
-                        f"    Nova Inserção: Estrutura {name} cheia (limite M1). Teste de inserção pulado.")
-                    op_results_summary['new_insertion_avg_time_ms'] = 0.0
-                    op_results_summary['new_insertion_peak_memory_kb'] = 0.0
-
+                i_t, i_m = [], [];
+                for b in sample_for_new_insertion: m = PerformanceMetrics.measure(structure.inserir, b); i_t.append(
+                    m['time']); i_m.append(m['peak_memory'])
+                op_results_summary['new_insertion_avg_time_ms'] = sum(
+                    i_t) / actual_num_operations if actual_num_operations else 0.0
+                op_results_summary['new_insertion_peak_memory_kb'] = max(i_m) if i_m else 0.0
+                if verbose: print(
+                    f"    Nova Inserção: Tempo médio {op_results_summary['new_insertion_avg_time_ms']:.4f} ms")
             if hasattr(structure, 'remover') and name not in ["BloomFilter"]:
-                remove_times, remove_mems = [], []
-                for bike in sample_for_search_remove:
-                    metrics = PerformanceMetrics.measure(structure.remover, bike)
-                    remove_times.append(metrics['time'])
-                    remove_mems.append(metrics['peak_memory'])
+                r_t, r_m = [], [];
+                for b in sample_for_search_remove: m = PerformanceMetrics.measure(structure.remover, b); r_t.append(
+                    m['time']); r_m.append(m['peak_memory'])
                 op_results_summary['removal_avg_time_ms'] = sum(
-                    remove_times) / actual_num_operations if actual_num_operations else 0
-                op_results_summary['removal_peak_memory_kb'] = max(remove_mems) if remove_mems else 0
+                    r_t) / actual_num_operations if actual_num_operations else 0.0
+                op_results_summary['removal_peak_memory_kb'] = max(r_m) if r_m else 0.0
                 if verbose: print(f"    Remoção: Tempo médio {op_results_summary['removal_avg_time_ms']:.4f} ms" + (
                     " (BTree placeholder)" if name == "BTree" else ""))
-
             if name == 'HashTable' and hasattr(structure, 'obter_estatisticas_colisao'):
-                collision_stats = structure.obter_estatisticas_colisao()
-                op_results_summary['HashTable_collision_stats'] = collision_stats
+                cs = structure.obter_estatisticas_colisao();
+                op_results_summary['HashTable_collision_stats'] = cs
                 if verbose: print(
-                    f"    Stats Colisão HT: Fator Carga={collision_stats['fator_carga_real']:.2f}, Max Bucket={collision_stats['max_comprimento_bucket']}")
+                    f"    Stats Colisão HT: Fator Carga={cs.get('fator_carga_real', 0.0):.2f}, Max Bucket={cs.get('max_comprimento_bucket', 0)}")
 
-            if name not in self.performance_results: self.performance_results[name] = {'initialization': {}}
+            if name not in self.performance_results: self.performance_results[name] = {
+                'initialization': {}}  # Garante que a chave existe
             self.performance_results[name].update(op_results_summary)
 
             if hasattr(structure, 'remover') and name not in ["BloomFilter", "BTree"]:
-                for bike in sample_for_new_insertion:
-                    structure.remover(bike)  # Tenta remover as motos de teste
+                for b_rem in sample_for_new_insertion: structure.remover(b_rem)
+
+    def run_combined_latency_benchmark(self, num_workloads: int = 50, num_searches_per_workload: int = 3,
+                                       verbose: bool = True) -> None:
+        if not self.initialized_structures:
+            if verbose: print(
+                "Nenhuma estrutura inicializada para o benchmark de latência. Execute a inicialização primeiro."); return
+        if not self.current_dataset_for_analysis or len(
+                self.current_dataset_for_analysis) < num_workloads + num_searches_per_workload:
+            if verbose: print(
+                f"Dataset de análise ({len(self.current_dataset_for_analysis)}) muito pequeno para {num_workloads} workloads de latência. Cancelando."); return
+
+        dataset_info = f"(Dataset: {self.active_restriction_name or 'Original'})"
+        if verbose: print(
+            f"\n⏱️  INICIANDO BENCHMARK DE LATÊNCIA COMBINADA ({num_workloads} workloads) {dataset_info}...")
+
+        base_price_new = 200000
+        workload_insertion_bikes = [
+            Moto(f"WL_Marca_{i}", f"WL_Modelo_{i}", base_price_new + i, base_price_new * 0.8 + i * 0.8, 2028 + (i % 3))
+            for i in range(num_workloads)]
+
+        for name, structure_instance in self.initialized_structures.items():
+            if verbose: print(f"  Testando latência para: {name}")
+            workload_times = []
+
+            # Criar uma cópia temporária da estrutura para este benchmark de latência
+            # para não afetar o estado da estrutura principal usada para outros benchmarks.
+            # Se deepcopy for muito lento ou problemático, essa etapa pode ser omitida,
+            # mas o estado da estrutura será modificado.
+            temp_structure = copy.deepcopy(structure_instance)
+
+            for i in range(num_workloads):
+                bike_to_insert_wl = workload_insertion_bikes[i]
+
+                items_for_search_wl = [bike_to_insert_wl]
+
+                # Tenta pegar amostras da estrutura TEMPORÁRIA, se ela tiver elementos.
+                # Isso garante que os itens de busca realmente estão (ou deveriam estar) na temp_structure.
+                struct_len_for_sample = len(temp_structure) if hasattr(temp_structure, '__len__') else 0
+                num_additional_searches = min(num_searches_per_workload - 1, struct_len_for_sample)
+
+                if num_additional_searches > 0:
+                    # Como pegar uma amostra válida de uma estrutura genérica é complexo,
+                    # usaremos itens do current_dataset_for_analysis, que sabemos que foram inseridos na inicialização.
+                    # Garantir que não pegamos o mesmo que bike_to_insert_wl, se possível.
+                    potential_search_pool = [m for m in self.current_dataset_for_analysis if m != bike_to_insert_wl]
+                    if len(potential_search_pool) >= num_additional_searches:
+                        items_for_search_wl.extend(random.sample(potential_search_pool, num_additional_searches))
+                    elif potential_search_pool:  # Pega o que puder
+                        items_for_search_wl.extend(random.sample(potential_search_pool, len(potential_search_pool)))
+
+                bike_to_remove_wl = bike_to_insert_wl
+
+                def workload_sequence_runner():
+                    if hasattr(temp_structure, 'inserir'): temp_structure.inserir(bike_to_insert_wl)
+                    if hasattr(temp_structure, 'buscar'):
+                        for s_bike in items_for_search_wl: temp_structure.buscar(s_bike)
+                    if hasattr(temp_structure, 'remover') and name not in ["BloomFilter"]:
+                        temp_structure.remover(bike_to_remove_wl)
+
+                metrics = PerformanceMetrics.measure(workload_sequence_runner)
+                workload_times.append(metrics['time'])
+
+            if workload_times:
+                avg_workload_latency_ms = sum(workload_times) / len(workload_times)
+                if verbose: print(f"    Latência Média por Workload Combinado: {avg_workload_latency_ms:.4f} ms")
+                if name not in self.performance_results: self.performance_results[name] = {}
+                self.performance_results[name]['combined_latency_avg_ms'] = avg_workload_latency_ms
+            else:
+                if verbose: print(f"    Nenhum workload de latência executado para {name}.")
+        if verbose: print("\n⏱️  Benchmark de Latência Combinada Concluído! ⏱️")
 
     def _generate_performance_report_table(self) -> None:
-        # (Implementação completa da sua última versão funcional)
         report_title = self.active_restriction_name.upper() if self.active_restriction_name else "BENCHMARKS PADRÃO"
         print(f"\n\n📊 RELATÓRIO DE DESEMPENHO ({report_title}) 📊")
         if not self.performance_results: print("Nenhum resultado para gerar relatório."); return
-        table_width = 120;
+        table_width = 140
         print("=" * table_width)
-        header = "{:<15} | {:<20} | {:<20} | {:<20} | {:<20} | {:<20}".format(
-            "Estrutura", "Init Avg Ins (ms)", "Search Avg (ms)", "New Ins Avg (ms)", "Removal Avg (ms)",
-            "Init Peak Mem (KB)")
+        header = "{:<15} | {:<20} | {:<20} | {:<20} | {:<20} | {:<20} | {:<22}".format(
+            "Estrutura", "Init Avg Ins (ms)", "Search Avg (ms)", "New Ins Avg (ms)",
+            "Removal Avg (ms)", "Init Peak Mem (KB)", "Avg Workload Latency (ms)")
         print(header);
         print("-" * table_width)
         for name, mets in sorted(self.performance_results.items()):
@@ -346,11 +288,11 @@ class StructureAnalyzer:
             print(
                 f"{name:<15} | {init_m.get('avg_insert_time_ms', 0.0):<20.4f} | {mets.get('search_avg_time_ms', 0.0):<20.4f} | "
                 f"{mets.get('new_insertion_avg_time_ms', 0.0):<20.4f} | {mets.get('removal_avg_time_ms', 0.0):<20.4f} | "
-                f"{init_m.get('peak_memory_init_kb', 0.0):<20.2f}")
+                f"{init_m.get('peak_memory_init_kb', 0.0):<20.2f} | {mets.get('combined_latency_avg_ms', 0.0):<22.4f}")
         print("=" * table_width)
-        ht_perf_res = self.performance_results.get('HashTable', {})
-        if 'HashTable_collision_stats' in ht_perf_res:
-            ht_s = ht_perf_res['HashTable_collision_stats'];
+        if 'HashTable' in self.performance_results and 'HashTable_collision_stats' in self.performance_results.get(
+                'HashTable', {}):
+            ht_s = self.performance_results['HashTable']['HashTable_collision_stats']
             ht_i = self.initialized_structures.get('HashTable');
             cap = ht_i.capacidade if ht_i else "N/A"
             print("\n--- Stats Colisão HashTable ---");
@@ -362,8 +304,7 @@ class StructureAnalyzer:
             print(f"  Compr Médio (Ocupados): {ht_s.get('avg_comprimento_bucket_ocupado', 0.0):.2f}");
             print("=" * 70)
 
-    def _generate_comparison_charts(self) -> None:
-        # (Implementação completa da sua última versão funcional)
+    def _generate_comparison_charts(self, op_lbls=None) -> None:
         chart_suffix = f" (Restrição: {self.active_restriction_name})" if self.active_restriction_name else ""
         if not self.performance_results: print("Nenhum resultado para gráficos de comparação."); return
         names = list(self.performance_results.keys())
@@ -372,41 +313,47 @@ class StructureAnalyzer:
             plt.style.use('seaborn-v0_8-whitegrid')
         except:
             plt.style.use('default')
+
         fig1 = None
         try:
             fig1, ax1 = plt.subplots(figsize=(15, 8))
-            ops = ['initialization_avg_insert', 'search_avg', 'new_insertion_avg', 'removal_avg']
-            op_lbls = ['Init Ins. Média', 'Busca Média', 'Nova Ins. Média', 'Remoção Média']
-            n_ops = len(ops)
+            # Excluindo combined_latency_avg_ms deste gráfico por enquanto para simplicidade,
+            # pois ele representa um tipo de medida diferente (workload vs operação individual).
+            operations = ['initialization_avg_insert', 'search_avg', 'new_insertion_avg', 'removal_avg']
+            op_labels = ['Init Ins. Média', 'Busca Média', 'Nova Ins. Média', 'Remoção Média']
+            n_ops = len(operations)
             try:
                 cmap = mcm.get_cmap('viridis'); colors_list = [cmap(i / n_ops) for i in range(n_ops)]
             except:
                 colors_list = ['skyblue', 'lightgreen', 'salmon', 'gold'][:n_ops]
             bar_w = 0.8 / (n_ops + 0.5);
             idx = np.arange(len(names))
-            for i, op_key in enumerate(ops):
+
+            for i, op_key in enumerate(operations):
                 key_for_results = f'{op_key}_time_ms' if op_key != 'initialization_avg_insert' else 'avg_insert_time_ms'
                 if op_key == 'initialization_avg_insert':
-                    data_source_dict = {n: d.get('initialization', {}) for n, d in self.performance_results.items()}
+                    data_source = {n: d.get('initialization', {}) for n, d in self.performance_results.items()}
                 else:
-                    data_source_dict = self.performance_results
-                times = [data_source_dict.get(n, {}).get(key_for_results, 0.0) for n in names]
+                    data_source = self.performance_results
+                times = [data_source.get(n, {}).get(key_for_results, 0.0) for n in names]
                 pos = idx - (bar_w * n_ops / 2) + (i * bar_w) + (bar_w / 2);
                 ax1.bar(pos, times, bar_w, label=op_lbls[i], color=colors_list[i])
-            ax1.set_title(f'Comparação de Tempos Médios das Operações{chart_suffix}', fontsize=16);
+
+            ax1.set_title(f'Comparação de Tempos Médios de Operações Individuais{chart_suffix}', fontsize=16)
             ax1.set_ylabel('Tempo Médio (ms)', fontsize=13)
-            ax1.set_xlabel('Estrutura', fontsize=13);
+            ax1.set_xlabel('Estrutura de Dados', fontsize=13);
             ax1.set_xticks(idx);
             ax1.set_xticklabels(names, rotation=30, ha="right", fontsize=11)
             ax1.legend(fontsize=10, loc='upper left', bbox_to_anchor=(1.02, 1));
             ax1.grid(True, axis='y', ls=':', alpha=0.6)
             plt.tight_layout(rect=[0, 0, 0.85, 1]);
-            print(f"\nExibindo gráfico Comp. Tempos{chart_suffix}... (Feche para continuar)");
+            print(f"\nExibindo gráfico de comparação de tempos{chart_suffix}... (Feche a janela para continuar)");
             plt.show()
         except Exception as e:
-            print(f"Erro gráfico tempos: {e}")
+            print(f"Erro ao gerar/exibir gráfico de comparação de tempos: {e}")
         finally:
             if fig1 is not None: plt.close(fig1)
+
         fig2 = None
         try:
             fig2, ax2 = plt.subplots(figsize=(12, 7))
@@ -417,84 +364,85 @@ class StructureAnalyzer:
             except:
                 bar_colors = 'mediumpurple'
             ax2.bar(names, memories, color=bar_colors, alpha=0.75, edgecolor='black')
-            ax2.set_title(f'Pico de Memória na Inicialização{chart_suffix}', fontsize=16);
+            ax2.set_title(f'Uso de Memória de Pico na Inicialização{chart_suffix}', fontsize=16)
             ax2.set_ylabel('Memória (KB)', fontsize=13)
             ax2.set_xlabel('Estrutura', fontsize=13);
             ax2.set_xticks(range(len(names)));
             ax2.set_xticklabels(names, rotation=30, ha="right", fontsize=11)
             ax2.grid(True, axis='y', ls=':', alpha=0.6);
-            plt.tight_layout();
-            print(f"\nExibindo gráfico Comp. Memória{chart_suffix}... (Feche para continuar)");
+            plt.tight_layout()
+            print(f"\nExibindo gráfico de comparação de memória{chart_suffix}... (Feche a janela para continuar)");
             plt.show()
         except Exception as e:
-            print(f"Erro gráfico memória: {e}")
+            print(f"Erro ao gerar/exibir gráfico de comparação de memória: {e}")
         finally:
             if fig2 is not None: plt.close(fig2)
 
     def _generate_insertion_evolution_charts(self) -> None:
-        # (Implementação completa da sua última versão funcional)
         chart_suffix = f" (Restrição: {self.active_restriction_name})" if self.active_restriction_name else ""
         if not self.performance_results: print("Nenhum resultado para gráficos de evolução."); return
         try:
             plt.style.use('seaborn-v0_8-whitegrid')
         except:
             plt.style.use('default')
+
         fig_t = None
         try:
-            fig_t, ax_t = plt.subplots(figsize=(12, 7));
-            ax_t.set_title(f'Evolução Tempo Inserção{chart_suffix}', fontsize=15)
-            ax_t.set_xlabel('# Inserção', fontsize=12);
+            fig_t, ax_t = plt.subplots(figsize=(12, 7))
+            ax_t.set_title(f'Evolução do Tempo de Inserção{chart_suffix}', fontsize=15);
+            ax_t.set_xlabel('Número da Operação de Inserção', fontsize=12);
             ax_t.set_ylabel('Tempo (ms)', fontsize=12)
             for name, mets in sorted(self.performance_results.items()):
                 init_d = mets.get('initialization', {}).get('insertion_evolution_data', [])
-                if init_d: times = [m.get('time', 0.0) for m in init_d];avg_t = sum(times) / len(
-                    times) if times else 0; ax_t.plot(times, label=f'{name} (média:{avg_t:.3f}ms)', marker='.', ls='-',
-                                                      alpha=0.6, ms=2)
+                if init_d:
+                    times = [m.get('time', 0.0) for m in init_d];
+                    avg_t = sum(times) / len(times) if times else 0
+                    ax_t.plot(times, label=f'{name} (média:{avg_t:.3f}ms)', marker='.', ls='-', alpha=0.6, ms=2)
             ax_t.legend(loc='upper right');
             ax_t.grid(True, ls=':', alpha=0.7);
             plt.tight_layout();
-            print(f"\nExibindo gráfico Evol. Tempo Ins{chart_suffix}... (Feche para continuar)");
+            print(
+                f"\nExibindo gráfico de evolução do tempo de inserção{chart_suffix}... (Feche a janela para continuar)");
             plt.show()
         except Exception as e:
-            print(f"Erro gráfico evol. tempo: {e}")
+            print(f"Erro ao gerar/exibir gráfico de evolução de tempo: {e}")
         finally:
             if fig_t is not None: plt.close(fig_t)
+
         fig_m = None
         try:
-            fig_m, ax_m = plt.subplots(figsize=(12, 7));
-            ax_m.set_title(f'Evolução Pico Memória Inserção{chart_suffix}', fontsize=15)
-            ax_m.set_xlabel('# Inserção', fontsize=12);
+            fig_m, ax_m = plt.subplots(figsize=(12, 7))
+            ax_m.set_title(f'Evolução do Pico de Memória na Inserção{chart_suffix}', fontsize=15)
+            ax_m.set_xlabel('Número da Operação de Inserção', fontsize=12);
             ax_m.set_ylabel('Memória (KB)', fontsize=12)
             for name, mets in sorted(self.performance_results.items()):
                 init_d = mets.get('initialization', {}).get('insertion_evolution_data', [])
-                if init_d: mems = [m.get('peak_memory', 0.0) for m in init_d];max_m = max(
-                    mems) if mems else 0; ax_m.plot(mems, label=f'{name} (pico max:{max_m:.2f}KB)', marker='.', ls='-',
-                                                    alpha=0.6, ms=2)
+                if init_d:
+                    mems = [m.get('peak_memory', 0.0) for m in init_d];
+                    max_m = max(mems) if mems else 0
+                    ax_m.plot(mems, label=f'{name} (pico max:{max_m:.2f}KB)', marker='.', ls='-', alpha=0.6, ms=2)
             ax_m.legend(loc='upper right');
             ax_m.grid(True, ls=':', alpha=0.7);
             plt.tight_layout();
-            print(f"\nExibindo gráfico Evol. Memória Ins{chart_suffix}... (Feche para continuar)");
+            print(
+                f"\nExibindo gráfico de evolução da memória de inserção{chart_suffix}... (Feche a janela para continuar)");
             plt.show()
         except Exception as e:
-            print(f"Erro gráfico evol. memória: {e}")
+            print(f"Erro ao gerar/exibir gráfico de evolução de memória: {e}")
         finally:
             if fig_m is not None: plt.close(fig_m)
 
     def run_scalability_tests(self, sizes_to_test: Optional[List[int]] = None, num_searches_per_size: int = 100,
                               verbose: bool = True) -> None:
-        # (Implementação completa da sua última versão funcional)
         if not self.current_dataset_for_analysis:
             if verbose: print("Dataset de análise atual vazio. Testes de escalabilidade cancelados."); return
         if sizes_to_test is None:
             base_s = [100, 500, 1000, 2500, 5000, 7500];
             max_ds_s = len(self.current_dataset_for_analysis)
             sizes_to_test = [s for s in base_s if s <= max_ds_s]
-            if max_ds_s > 0 and max_ds_s not in sizes_to_test and (
+            if max_ds_s not in sizes_to_test and (
                     not sizes_to_test or max_ds_s > sizes_to_test[-1]): sizes_to_test.append(max_ds_s)
-            if not sizes_to_test and max_ds_s > 0:
-                sizes_to_test = [max_ds_s]
-            elif not sizes_to_test:
-                sizes_to_test = [10]
+            if not sizes_to_test: sizes_to_test = [max_ds_s] if max_ds_s > 0 else [10]
             sizes_to_test = sorted(list(set(s for s in sizes_to_test if s > 0)))
         dataset_info = f"(Dataset: {self.active_restriction_name or 'Original'})"
         if verbose: print(f"\n🔬 INICIANDO TESTES DE ESCALABILIDADE {dataset_info} para N = {sizes_to_test} ...")
@@ -505,53 +453,41 @@ class StructureAnalyzer:
                 if verbose: print(
                     f"AVISO: N={n_size} > dataset atual ({len(self.current_dataset_for_analysis)}). Pulando."); continue
             if verbose: print(f"\n  --- Testando com N = {n_size} ---")
-            # Garante que k (n_size) não é maior que a população (len(self.current_dataset_for_analysis))
-            k_sample = min(n_size, len(self.current_dataset_for_analysis))
-            if k_sample <= 0:
-                if verbose: print(
-                    f"      Amostra de tamanho {k_sample} inválida para N={n_size}. Pulando estruturas para este N.")
-                continue
-            curr_sample = random.sample(self.current_dataset_for_analysis, k_sample)
+            curr_sample = random.sample(self.current_dataset_for_analysis, n_size)
             for s_name, constructor_factory in self.structures_prototypes.items():
-                if verbose: print(f"    Testando {s_name}...")
+                if verbose: print(f"    Testando estrutura: {s_name}")
                 instance = constructor_factory()
-                self._apply_instance_restrictions(instance, s_name)
-                items_inserted = 0;
                 tracemalloc.start();
-                t_s_ins = time.perf_counter()
-                for bike in curr_sample:
-                    if instance.inserir(bike) is not False: items_inserted += 1
-                t_tot_ins_ms = (time.perf_counter() - t_s_ins) * 1000;
-                avg_ins_ms = t_tot_ins_ms / items_inserted if items_inserted else 0.0
+                t_start_ins = time.perf_counter()
+                for bike in curr_sample: instance.inserir(bike)
+                t_total_ins_ms = (time.perf_counter() - t_start_ins) * 1000;
+                avg_ins_ms = t_total_ins_ms / n_size if n_size else 0.0
                 _, peak_mem_kb = tracemalloc.get_traced_memory();
                 tracemalloc.stop();
                 peak_mem_kb /= 1024
                 if verbose: print(
-                    f"      Ins ({items_inserted}/{n_size}): Tot={t_tot_ins_ms:.2f}ms, Média={avg_ins_ms:.4f}ms/item, PicoMem={peak_mem_kb:.2f}KB")
-                avg_srch_ms = 0.0
+                    f"      Ins ({n_size}): Total={t_total_ins_ms:.2f}ms, Média={avg_ins_ms:.4f}ms/item, Pico Mem={peak_mem_kb:.2f}KB")
+                avg_search_ms = 0.0
                 if hasattr(instance, 'buscar'):
-                    n_srch_actual = min(num_searches_per_size, items_inserted)
-                    if n_srch_actual > 0:
-                        s_samp_actual = random.sample(curr_sample[:items_inserted], k=min(n_srch_actual,
-                                                                                          items_inserted)) if items_inserted > 0 else []
-                        s_t_list = []
-                        for b_s in s_samp_actual: t_s_srch = time.perf_counter();instance.buscar(b_s);s_t_list.append(
-                            (time.perf_counter() - t_s_srch) * 1000)
-                        avg_srch_ms = sum(s_t_list) / n_srch_actual if n_srch_actual else 0.0
-                        if verbose: print(f"      Busca ({n_srch_actual}): Média={avg_srch_ms:.4f}ms/item")
+                    n_searches = min(num_searches_per_size, n_size)
+                    if n_searches > 0:
+                        search_samp = random.sample(curr_sample, n_searches);
+                        search_t_list = []
+                        for b_search in search_samp: t_s = time.perf_counter(); instance.buscar(
+                            b_search); search_t_list.append((time.perf_counter() - t_s) * 1000)
+                        avg_search_ms = sum(search_t_list) / n_searches if n_searches else 0.0
+                        if verbose: print(f"      Busca ({n_searches}): Média={avg_search_ms:.4f}ms/item")
                     else:
-                        if verbose: print(f"      Busca: Nenhuma.")
+                        if verbose: print("      Busca: Nenhuma busca executada.")
                 else:
-                    if verbose: print(f"      Busca: Não suportada.")
-                self._revert_instance_restrictions(instance, s_name)
+                    if verbose: print(f"      Busca: Não suportada por {s_name}.")
                 if s_name not in self.scalability_results: self.scalability_results[s_name] = []
                 self.scalability_results[s_name].append(
-                    {'N': n_size, 'items_actually_inserted': items_inserted, 'avg_insert_time_ms': avg_ins_ms,
-                     'peak_memory_kb': peak_mem_kb, 'avg_search_time_ms': avg_srch_ms})
+                    {'N': n_size, 'avg_insert_time_ms': avg_ins_ms, 'peak_memory_kb': peak_mem_kb,
+                     'avg_search_time_ms': avg_search_ms})
         if verbose: print("\n🔬 Testes de Escalabilidade Concluídos! 🔬")
 
     def _generate_scalability_charts(self, log_scale_plots: bool = False) -> None:
-        # (Implementação completa da sua última versão funcional)
         chart_suffix = f" (Restrição: {self.active_restriction_name})" if self.active_restriction_name else ""
         if not self.scalability_results: print("Nenhum resultado para gráficos de escalabilidade."); return
         try:
@@ -567,66 +503,68 @@ class StructureAnalyzer:
                 title = title_base + chart_suffix
                 fig, ax = plt.subplots(figsize=(12, 7));
                 ax.set_title(title, fontsize=15)
-                ax.set_xlabel('Nº Elementos Inseridos', fontsize=12);
+                ax.set_xlabel('Número de Elementos (N)', fontsize=12);
                 ax.set_ylabel(ylabel, fontsize=12);
-                has_data_for_plot = False
+                has_data = False
                 for s_name, res_list in sorted(self.scalability_results.items()):
                     if not res_list: continue
-                    s_res = sorted(res_list, key=lambda x: x['N'])
-                    n_vals = [r.get('items_actually_inserted', r['N']) for r in s_res]
-                    m_vals = [r.get(metric, 0.0) for r in s_res]
-                    if not any(abs(v) > 1e-6 for v in m_vals) and metric != 'peak_memory_kb':
+                    s_res = sorted(res_list, key=lambda x: x['N']);
+                    n_vals = [r['N'] for r in s_res];
+                    m_vals = [r[metric] for r in s_res]
+                    if not any(v > 1e-5 for v in
+                               m_vals) and metric != 'peak_memory_kb':  # Verifica se há valores significativos
                         if not (metric == 'avg_search_time_ms' and not hasattr(self.structures_prototypes[s_name](),
-                                                                               'buscar')): pass
+                                                                               'buscar')):
+                            # print(f"Aviso: Métrica '{metric}' apenas com valores próximos de zero para '{s_name}', não será plotada.")
+                            pass
                         continue
-                    has_data_for_plot = True;
+                    has_data = True;
                     ax.plot(n_vals, m_vals, marker='o', ls='-', lw=2, ms=5, label=s_name)
-                if not has_data_for_plot: print(f"Nenhum dado válido para plotar: {title}");
-                if fig and not has_data_for_plot: plt.close(fig); continue
+                if not has_data: print(f"Nenhum dado válido para plotar: {title}");
+                if fig and not has_data: plt.close(fig); continue
                 if log_scale_plots and "Tempo" in ylabel:
-                    valid_points_for_log = False;
-                    ax.clear();
-                    ax.set_title(title, fontsize=15)
-                    ax.set_xlabel('Nº Elementos Inseridos', fontsize=12);
-                    ax.set_ylabel(f"{ylabel} (Escala Log)", fontsize=12)
-                    for s_name, res_list in sorted(self.scalability_results.items()):
-                        s_res = sorted(res_list, key=lambda x: x['N']);
-                        n_vals = [r.get('items_actually_inserted', r['N']) for r in s_res];
-                        m_vals = [r.get(metric, 0.0) for r in s_res]
-                        log_n = [n for n, m in zip(n_vals, m_vals) if m > 1e-9];
-                        log_m = [m for m in m_vals if m > 1e-9]
-                        if log_n and log_m: ax.plot(log_n, log_m, marker='o', ls='-', lw=2, ms=5,
-                                                    label=s_name); valid_points_for_log = True
-                    if valid_points_for_log:
-                        ax.set_yscale('log')
-                    else:
-                        ax.set_ylabel(ylabel, fontsize=12)
+                    # Apenas aplica escala log se houver dados e eles forem positivos
+                    valid_for_log = all(
+                        any(r[metric] > 0 for r in res_list) for res_list in self.scalability_results.values() if
+                        res_list)
+                    if valid_for_log:
+                        ax.set_yscale('log');
+                        ax.set_ylabel(f"{ylabel} (Escala Log)", fontsize=12)
+                    # else:
+                    # print(f"AVISO: Não foi possível aplicar escala log em '{title}' devido a valores não positivos.")
                 ax.legend(loc='best', fontsize=10);
                 ax.grid(True, ls=':', alpha=0.7);
-                plt.tight_layout();
-                print(f"\nExibindo: {title}... (Feche para continuar)");
+                plt.tight_layout()
+                print(f"\nExibindo gráfico: {title}... (Feche a janela para continuar)");
                 plt.show()
             except Exception as e:
-                print(f"Erro gráfico escalabilidade '{title}': {e}")
+                print(f"Erro ao gerar/exibir gráfico de escalabilidade '{title}': {e}")
             finally:
                 if fig: plt.close(fig)
 
     def run_suite_with_restriction(self, restriction_config: Dict[str, Any], init_sample_size: Optional[int] = None,
                                    benchmark_ops_count: int = 100, run_scalability_flag: bool = False,
-                                   scalability_sizes: Optional[List[int]] = None):
+                                   scalability_sizes: Optional[List[int]] = None,
+                                   run_latency_bench_flag: bool = False,
+                                   num_latency_workloads: int = 50
+                                   ):
         print(f"\n\n{'=' * 10} EXECUTANDO SUÍTE COM RESTRIÇÃO: {restriction_config.get('nome', 'N/A')} {'=' * 10}")
-        self._prepare_and_configure_for_restriction(restriction_config)
+        self._prepare_dataset_for_analysis(restriction_config)
+
+        original_cpu_slowdown_factor = restricao_processamento.SIMULATED_CPU_SLOWDOWN_FACTOR
+        original_extra_computation_loops = restricao_processamento.SIMULATED_EXTRA_COMPUTATION_LOOPS
+
+        if restriction_config.get("tipo_categoria") == "processamento":
+            if restriction_config.get(
+                    "subtipo") == "cpu_lenta_delay":  # Supondo que este é um subtipo que você definirá
+                restricao_processamento.configurar_lentidao_cpu(**restriction_config.get("params", {}))
+            elif restriction_config.get("subtipo") == "carga_extra":
+                restricao_processamento.configurar_carga_computacional_extra(**restriction_config.get("params", {}))
 
         self.initialize_all_structures(sample_size=init_sample_size, verbose=True)
-        # Aplica restrições de instância (A1) ANTES dos benchmarks de operações
-        for name, instance in self.initialized_structures.items():
-            self._apply_instance_restrictions(instance, name)
-
         self.run_benchmark_operations(num_operations=benchmark_ops_count, verbose=True)
-
-        # Reverte restrições de instância APÓS os benchmarks de operações
-        for name, instance in self.initialized_structures.items():
-            self._revert_instance_restrictions(instance, name)
+        if run_latency_bench_flag:
+            self.run_combined_latency_benchmark(num_workloads=num_latency_workloads, verbose=True)
 
         print(f"\n📋 Gerando Relatórios e Gráficos para Restrição: {self.active_restriction_name}...")
         self._generate_performance_report_table()
@@ -634,23 +572,29 @@ class StructureAnalyzer:
         self._generate_insertion_evolution_charts()
 
         if run_scalability_flag:
-            # _prepare_and_configure_for_restriction já foi chamado e configurou os parâmetros
-            # que _get_structure_prototypes e _apply_instance_restrictions usarão dentro de run_scalability_tests
             self.run_scalability_tests(sizes_to_test=scalability_sizes, verbose=True)
             print(f"\n📈 Gerando Gráficos de Escalabilidade para Restrição: {self.active_restriction_name}...")
             self._generate_scalability_charts(log_scale_plots=True)
 
-        self._prepare_and_configure_for_restriction(None)  # Reseta tudo ao final da suíte de restrição
+        if restriction_config.get("tipo_categoria") == "processamento":
+            restricao_processamento.SIMULATED_CPU_SLOWDOWN_FACTOR = original_cpu_slowdown_factor
+            restricao_processamento.SIMULATED_EXTRA_COMPUTATION_LOOPS = original_extra_computation_loops
+            print("INFO: Configurações de restrição de processamento revertidas para o padrão.")
+
+        self.active_restriction_name = None
+        self.current_dataset_for_analysis = self.motorcycles_full_dataset_original
         print(f"\n{'=' * 10} SUÍTE COM RESTRIÇÃO {restriction_config.get('nome', 'N/A')} CONCLUÍDA {'=' * 10}")
 
-    def run_full_analysis_suite(self, init_sample_size: Optional[int] = 1000, benchmark_ops_count: int = 100):
+    def run_full_analysis_suite(self, init_sample_size: Optional[int] = 1000, benchmark_ops_count: int = 100,
+                                run_latency_bench_flag: bool = False,
+                                num_latency_workloads: int = 50):
         print("\n🚀 SUÍTE DE ANÁLISE PADRÃO (SEM RESTRIÇÕES) 🚀")
-        self._prepare_and_configure_for_restriction(None)
+        self._prepare_dataset_for_analysis(None)
         self.initialize_all_structures(sample_size=init_sample_size)
-        # Para benchmarks padrão, normalmente não aplicamos restrições como A1,
-        # A menos que a A1 fosse um comportamento padrão desejado para as árvores.
-        # Se for específico de uma restrição, _apply_instance_restrictions não é chamado aqui.
         self.run_benchmark_operations(num_operations=benchmark_ops_count)
+        if run_latency_bench_flag:
+            self.run_combined_latency_benchmark(num_workloads=num_latency_workloads, verbose=True)
+
         print("\n📋 Gerando Relatórios e Gráficos Padrão...");
         self._generate_performance_report_table()
         self._generate_comparison_charts()
@@ -658,40 +602,22 @@ class StructureAnalyzer:
         print("\n🏁 Análise Padrão Concluída! 🏁")
 
 
-# (COLE CONFIGURACOES_TESTES_RESTRICAO ATUALIZADO com 10 itens AQUI)
 CONFIGURACOES_TESTES_RESTRICAO = {
-    "D1_precos_corrompidos": {"nome": "Dados: Preços Corrompidos (10%, Outlier 3x)", "categoria": "Dados",
-                              "tipo_categoria": "dados", "tipo": "corromper_precos",
-                              "params": {"percentual_corrompido": 0.1, "fator_outlier": 3.0}},
-    "D2_anos_anomalos": {"nome": "Dados: Anos Anômalos (5%)", "categoria": "Dados", "tipo_categoria": "dados",
-                         "tipo": "anos_anomalos", "params": {"percentual_anomalo": 0.05}},
-    "P1_carga_cpu_leve": {"nome": "Processamento: Carga Leve (5k loops/op)", "categoria": "Processamento",
-                          "tipo_categoria": "processamento", "subtipo": "carga_extra",
-                          "params": {"num_loops_extras": 5000}},
-    "P2_carga_cpu_alta": {"nome": "Processamento: Carga Alta (50k loops/op)", "categoria": "Processamento",
-                          "tipo_categoria": "processamento", "subtipo": "carga_extra",
-                          "params": {"num_loops_extras": 50000}},
-    "L1_delay_op_5ms": {"nome": "Latência: Delay 5ms/Operação", "categoria": "Latência", "tipo_categoria": "latencia",
-                        "subtipo": "delay_operacao_constante", "params": {"delay_segundos": 0.005}},
-    "L2_ins_lote_10_delay_50ms": {"nome": "Latência: Inserção Lote(10), Delay 50ms/lote", "categoria": "Latência",
-                                  "tipo_categoria": "latencia", "subtipo": "insercao_lote_com_delay",
-                                  "params": {"tamanho_lote": 10, "delay_por_lote_segundos": 0.05}},
-    "A1_limite_busca_arvore_5": {"nome": "Algorítmica: Busca Árvore Limitada (5 passos)",
-                                 "categoria": "Algorítmica/Estrutural", "tipo_categoria": "algoritmica",
-                                 "subtipo": "limite_passos_busca_arvore", "params": {"max_passos": 5}},
-    "A2_hash_fator_carga_baixo": {"nome": "Algorítmica: HashTable Fator Carga Baixo (0.3)",
-                                  "categoria": "Algorítmica/Estrutural", "tipo_categoria": "algoritmica",
-                                  "subtipo": "hash_fator_carga_baixo", "params": {"fator_carga_max": 0.3}},
-    "M1_limite_elementos_500": {"nome": "Memória: Limite de 500 Elementos/Estrutura", "categoria": "Memória",
-                                "tipo_categoria": "memoria", "subtipo": "limite_max_elementos",
-                                "params": {"max_elementos": 500}},
-    "M2_lista_descarte_lru_1k": {"nome": "Memória: Lista Encadeada LRU (Capacidade 1k)", "categoria": "Memória",
-                                 "tipo_categoria": "memoria", "subtipo": "descarte_lru_lista",
-                                 "params": {"capacidade_lista": 1000}}
+    "dados_precos_corrompidos_10": {"nome": "Preços Corrompidos (10%)", "categoria": "Dados", "tipo_categoria": "dados",
+                                    "tipo": "corromper_precos",
+                                    "params": {"percentual_corrompido": 0.1, "fator_outlier": 3.0}},
+    "dados_anos_anomalos_5": {"nome": "Anos Anômalos (5%)", "categoria": "Dados", "tipo_categoria": "dados",
+                              "tipo": "anos_anomalos", "params": {"percentual_anomalo": 0.05}},
+    "proc_carga_leve": {"nome": "CPU com Carga Leve (5k loops)", "categoria": "Processamento",
+                        "tipo_categoria": "processamento", "subtipo": "carga_extra",
+                        "params": {"num_loops_extras": 5000}},
+    "proc_carga_alta": {"nome": "CPU com Carga Alta (50k loops)", "categoria": "Processamento",
+                        "tipo_categoria": "processamento", "subtipo": "carga_extra",
+                        "params": {"num_loops_extras": 50000}},
+    # TODO: Adicionar mais 6 configurações para cobrir as 10 simulações
 }
 
 
-# (COLE main_menu_loop, main, e if __name__ DA ÚLTIMA RESPOSTA COMPLETA AQUI)
 def main_menu_loop(analyzer: StructureAnalyzer, full_dataset: List[Moto]):
     while True:
         print("\n" + "=" * 50 + "\nSISTEMA DE ANÁLISE DE ESTRUTURAS DE DADOS\n" + "=" * 50)
@@ -699,7 +625,7 @@ def main_menu_loop(analyzer: StructureAnalyzer, full_dataset: List[Moto]):
         print("1. Lista Encadeada\n2. Árvore AVL\n3. Tabela Hash")
         print("4. Bloom Filter\n5. Radix Tree\n6. Árvore B")
         print("--- ANÁLISE E COMPARAÇÃO ---")
-        print("7. Executar Suíte Completa de Análise (Benchmarks Padrão)")
+        print("7. Executar Suíte Completa de Análise (Padrão + Latência Opcional)")
         print("8. Executar Testes de Escalabilidade e Gerar Gráficos")
         print("9. Executar Testes com Condições Restritivas")
         print("10. Gerar Gráficos de Evolução da Inicialização")
@@ -714,101 +640,92 @@ def main_menu_loop(analyzer: StructureAnalyzer, full_dataset: List[Moto]):
                      '3': ('HashTable', "TABELA HASH"),
                      '4': ('BloomFilter', "BLOOM FILTER"), '5': ('RadixTree', "RADIX TREE"), '6': ('BTree', "ÁRVORE B")}
             s_key, s_name = s_map[escolha]
-            # Garante que, se estivermos em modo de restrição, não tentamos re-inicializar tudo aqui,
-            # pois a restrição já foi aplicada. O menu individual deve mostrar o estado atual da restrição.
-            if not analyzer.initialized_structures.get(s_key) and analyzer.active_restriction_config is None:
-                print(f"\nAVISO: {s_name} não inicializada (ou resetada).")
-                print(
-                    "  Execute Opção 7 (Suíte Completa) ou 8 (Escalabilidade) para popular as estruturas com dados padrão, ou:")
-                default_s = (analyzer.last_init_sample_size if analyzer.last_init_sample_size is not None else 1000)
+            if not analyzer.initialized_structures.get(s_key):
+                print(f"\nAVISO: {s_name} não inicializada.");
+                print("  Execute Opção 7 ou 8 primeiro, ou:")
+                default_s = analyzer.last_init_sample_size if analyzer.last_init_sample_size is not None else 1000
                 if input(
-                        f"  Deseja inicializar TODAS as estruturas agora com amostra padrão ({default_s}) para visualização? (s/n): ").lower() == 's':
-                    analyzer._prepare_and_configure_for_restriction(
-                        None)  # Garante que está em modo sem restrição para este init
+                        f"  Deseja inicializar TODAS as estruturas agora com uma amostra ({default_s})? (s/n): ").lower() == 's':
+                    analyzer._prepare_dataset_for_analysis(None)
                     analyzer.initialize_all_structures(sample_size=default_s, verbose=True)
-
-            current_struct_instance = analyzer.initialized_structures.get(s_key)
-            if not current_struct_instance:
-                print(
-                    f"{s_name} não está pronta. Se uma restrição está ativa, ela pode não ter sido inicializada. Tente a Opção 9 primeiro ou a Opção 7 para modo padrão.");
-                continue
-
-            analyzer._apply_instance_restrictions(current_struct_instance,
-                                                  s_key)  # Aplica restrições de instância se houver
-            menu_estrutura(current_struct_instance, s_name,
-                           analyzer.motorcycles_full_dataset_original)  # Sempre passa o original para referência
-            analyzer._revert_instance_restrictions(current_struct_instance, s_key)  # Reverte para o estado normal
+                if not analyzer.initialized_structures.get(s_key):
+                    print(f"{s_name} ainda não inicializada. Voltando ao menu.");
+                    continue
+            menu_estrutura(analyzer.initialized_structures[s_key], s_name, analyzer.motorcycles_full_dataset_original)
 
         elif escolha == '7':
             try:
                 default_init_s = analyzer.last_init_sample_size if analyzer.last_init_sample_size is not None else 1000
-                init_s_str = input(
-                    f"Amostra para benchmarks padrão (Padrão {default_init_s}. VAZIO para dataset completo): ").strip()
-                init_samp: Optional[int] = None
-                if not init_s_str:
-                    init_samp = None
-                else:
-                    init_samp = int(init_s_str)
+                init_s_str = input(f"Amostra para benchmarks (Padrão {default_init_s}. VAZIO=dataset todo): ").strip()
+                init_samp: Optional[int] = None if not init_s_str else int(init_s_str)
                 if init_samp is not None and init_samp <= 0: init_samp = None; print(
-                    "INFO: Amostra inválida, usando dataset completo.")
+                    "INFO: Amostra inválida, usando dataset todo.")
 
-                bench_ops_s = input(f"Número de operações para benchmarks padrão (padrão 100): ").strip()
-                bench_ops = int(bench_ops_s) if bench_ops_s and bench_ops_s.isdigit() else 100
-                if bench_ops < 0: bench_ops = 100; print("INFO: Número de operações inválido, usando 100.")
+                bench_ops_s = input(f"Ops para benchmarks individuais (padrão 100): ").strip()
+                bench_ops = int(bench_ops_s) if bench_ops_s else 100
+                if bench_ops < 0: bench_ops = 100; print("INFO: Ops inválidas, usando 100.")
 
-                analyzer.run_full_analysis_suite(init_sample_size=init_samp, benchmark_ops_count=bench_ops)
+                run_latency_input = input(
+                    "Executar benchmark de latência combinada também? (s/n, padrão s): ").strip().lower()
+                run_lat_bench = not run_latency_input or run_latency_input == 's'  # Padrão para True (s)
+                num_lat_workloads = 50
+                if run_lat_bench:
+                    lat_wl_s = input(f"Número de workloads para latência (padrão {num_lat_workloads}): ").strip()
+                    num_lat_workloads = int(lat_wl_s) if lat_wl_s else num_lat_workloads
+                    if num_lat_workloads <= 0: num_lat_workloads = 50; print(
+                        "INFO: Workloads latência inválido, usando 50.")
+
+                analyzer.run_full_analysis_suite(
+                    init_sample_size=init_samp,
+                    benchmark_ops_count=bench_ops,
+                    run_latency_bench_flag=run_lat_bench,
+                    num_latency_workloads=num_lat_workloads
+                )
             except ValueError:
-                print("ERRO: Entrada inválida. Executando com padrões (Amostra: Dataset Completo, Bench Ops: 100).")
-                analyzer.run_full_analysis_suite(init_sample_size=None, benchmark_ops_count=100)
+                print("ERRO: Entrada inválida. Executando com padrões.")
+                analyzer.run_full_analysis_suite(run_latency_bench_flag=True)
             except Exception as e:
-                print(f"Ocorreu um erro inesperado ao executar a suíte de análise: {e}")
+                print(f"Ocorreu um erro inesperado: {e}")
 
         elif escolha == '8':
             try:
                 print("\n--- Configurar Testes de Escalabilidade ---")
-                sizes_str = input("Digite os tamanhos N (ex: 100,500,1000). VAZIO para padrão: ").strip()
-                sizes_to_test_input: Optional[List[int]] = None
-                if sizes_str:
-                    raw_sizes = [s.strip() for s in sizes_str.split(',')];
-                    if all(s.isdigit() and int(s) > 0 for s in raw_sizes if s):
-                        sizes_to_test_input = [int(s) for s in raw_sizes if s]
-                    else:
-                        print("AVISO: Formato de Ns inválido. Usando padrão.")
-                else:
-                    print("INFO: Usando Ns padrão para escalabilidade.")
+                sizes_str = input("Tamanhos N (ex:100,500). VAZIO=padrão: ").strip()
+                sizes_to_test_input: Optional[List[int]] = [int(s.strip()) for s in
+                                                            sizes_str.split(',')] if sizes_str else None
+                if sizes_to_test_input and any(s <= 0 for s in sizes_to_test_input):
+                    print("AVISO: Ns devem ser positivos. Usando padrão.");
+                    sizes_to_test_input = None
 
-                num_searches_str = input("Número de buscas aleatórias por tamanho N (padrão 100): ").strip();
-                num_s = int(num_searches_str) if num_searches_str and num_searches_str.isdigit() else 100
+                num_searches_str = input("Buscas por N (padrão 100): ").strip()
+                num_s = int(num_searches_str) if num_searches_str else 100
                 if num_s < 0: num_s = 100; print("INFO: # Buscas inválido, usando 100.")
 
-                log_s = input(
-                    "Usar escala logarítmica para eixos Y dos gráficos de TEMPO? (s/n, padrão s): ").strip().lower();
+                log_s = input("Escala Log para TEMPO nos gráficos? (s/n, padrão s): ").strip().lower()
                 log_sc = not log_s or log_s == 's'
 
-                analyzer._prepare_and_configure_for_restriction(None)  # Garante modo padrão para escalabilidade
+                analyzer._prepare_dataset_for_analysis(None)  # Garante dataset original
                 analyzer.run_scalability_tests(sizes_to_test=sizes_to_test_input, num_searches_per_size=num_s,
                                                verbose=True)
                 print("\n📈 Gerando Gráficos Escalabilidade...");
                 analyzer._generate_scalability_charts(log_scale_plots=log_sc)
             except ValueError:
-                print("ERRO: Entrada inválida para parâmetros de escalabilidade.")
+                print("ERRO: Entrada inválida.")
             except Exception as e:
-                print(f"Erro inesperado durante os testes de escalabilidade: {e}")
+                print(f"Erro inesperado: {e}")
 
         elif escolha == '9':
             submenu_testes_restricao(analyzer, CONFIGURACOES_TESTES_RESTRICAO)
 
         elif escolha == '10':
-            # Verifica se performance_results e a chave initialization existem e se insertion_evolution_data é uma lista
-            if not analyzer.performance_results or \
-                    not any(isinstance(analyzer.performance_results.get(res_name, {}).get('initialization', {}).get(
-                        'insertion_evolution_data'), list)
-                            for res_name in analyzer.performance_results):
-                print("\nNenhum dado de evolução da inicialização disponível.")
-                print("Execute a Opção 7 (Suíte Completa) ou uma Suíte com Restrição (Opção 9) primeiro.")
+            if not analyzer.performance_results and not analyzer.scalability_results:
+                print("\nNenhum resultado de init/bench disponível. Execute Opção 7 ou 8.");
+            # Verifica se 'initialization' existe e tem 'insertion_evolution_data'
+            elif not any(isinstance(analyzer.performance_results.get(res_name, {}).get('initialization', {}).get(
+                    'insertion_evolution_data'), list) for res_name in analyzer.performance_results):
+                print("\nDados de evolução da init não disponíveis (Execute Opção 7 primeiro).")
             else:
                 analyzer._generate_insertion_evolution_charts()
-
 
         elif escolha == '11':
             if not full_dataset:
@@ -821,7 +738,7 @@ def main_menu_loop(analyzer: StructureAnalyzer, full_dataset: List[Moto]):
                 print("\nDataset está vazio.")
             else:
                 try:
-                    anos_f_str = input("Anos no futuro para prever? ")
+                    anos_f_str = input("Quantos anos no futuro para prever? ")
                     anos_f = int(anos_f_str)
                     if anos_f > 0:
                         MotoEstatisticas.prever_tendencias(full_dataset, anos_f)
@@ -841,25 +758,23 @@ def main_menu_loop(analyzer: StructureAnalyzer, full_dataset: List[Moto]):
 
 
 def main():
-    print("=" * 50 + "\nBem-vindo ao Sistema Avançado de Análise de Desempenho de Estruturas de Dados!\n" + "=" * 50)
+    print("=" * 50 + "\nBem-vindo ao Sistema de Análise de Estruturas de Dados!\n" + "=" * 50)
     d_path = os.path.join('data', 'bike_sales_india.csv')
     if not os.path.exists(d_path):
-        print(f"ERRO CRÍTICO: Arquivo de dataset não encontrado em '{os.path.abspath(d_path)}'")
+        print(f"ERRO CRÍTICO: Dataset '{os.path.abspath(d_path)}' não encontrado!");
         sys.exit(1)
-    print(f"\nCarregando dataset de motocicletas de '{d_path}'...")
+    print(f"\nCarregando dataset de '{d_path}'...");
     motos_ds = DataHandler.ler_dataset(d_path)
     if not motos_ds:
-        print("ERRO CRÍTICO: Nenhum dado foi carregado do dataset ou o dataset está vazio.")
+        print("ERRO CRÍTICO: Nenhum dado carregado.");
         sys.exit(1)
-    print(f"Dataset carregado com {len(motos_ds)} registros.")
+    print(f"Dataset carregado: {len(motos_ds)} registros.");
     analyzer = StructureAnalyzer(motos_ds)
 
     if not analyzer.initialized_structures and not analyzer.scalability_results:
         print("\nDica: Nenhuma estrutura foi inicializada ou testada ainda.")
         print("  - Use a Opção 7 para benchmarks padrão.")
         print("  - Use a Opção 8 para testes de escalabilidade.")
-        print("  - Use a Opção 9 para testes com restrições.")
-        print("  - Ao selecionar uma estrutura individual (1-6), você poderá inicializar todas se desejar.")
 
     main_menu_loop(analyzer, motos_ds)
 
@@ -869,7 +784,8 @@ if __name__ == "__main__":
         import matplotlib
 
         matplotlib.use('TkAgg')
+        print("INFO: Usando backend Matplotlib TkAgg.")
     except Exception as e:
         print(f"AVISO: Problema ao configurar backend 'TkAgg' do Matplotlib: {e}. "
-              "Os gráficos podem não ser exibidos interativamente ou podem precisar de configuração manual do backend (ex: MPLBACKEND).")
+              "Os gráficos podem não ser exibidos interativamente ou podem precisar de configuração manual (ex: MPLBACKEND).")
     main()
