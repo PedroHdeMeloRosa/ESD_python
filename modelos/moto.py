@@ -81,8 +81,8 @@ class MotoEstatisticas:
         return estats
 
     @staticmethod
-    def gerar_graficos(motos: List[Moto]) -> None:
-        if not motos:
+    def gerar_graficos(motos: List[Moto], fig_to_use: Optional[plt.Figure] = None) -> Optional[plt.Figure]:
+        if not fig_to_use:
             print("Não há dados de motos para gerar gráficos.")
             return
         try:
@@ -222,7 +222,7 @@ class MotoEstatisticas:
             plt.tight_layout(rect=[0, 0.03, 1, 0.95])  # Ajusta para o supertítulo e títulos dos eixos
 
             print("\nTentando exibir gráficos consolidados...")
-            plt.show()  # Tenta exibir
+            return fig_to_use  # Tenta exibir
         except Exception as e_show:
             print(
                 f"AVISO: Não foi possível exibir os gráficos interativamente ({e_show}). Tentando salvar em arquivo...")
