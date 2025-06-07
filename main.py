@@ -84,13 +84,12 @@ class StructureAnalyzer:
         }
         self.active_prototypes: Dict[str, Callable[[], Any]] = self.structures_prototypes_base.copy()
         self.initialized_structures: Dict[str, Any] = {}
-        self.performance_results: Dict[str, Dict[str, Any]] = {}
+        self.performance_results: Dict[str, Dict[str, Any]] = {}  # ÚNICO local para todos os resultados
         self.last_init_sample_size: Optional[int] = None
         self.scalability_results: Dict[str, List[Dict[str, Any]]] = {}
         self.active_restriction_name: Optional[str] = None
 
-    def _prepare_dataset_for_analysis(self, restriction_config: Optional[Dict[str, Any]] = None) -> None:
-        # ... (código como na sua última versão funcional) ...
+    def _prepare_dataset_for_analysis(self, restriction_config: Optional[Dict[str, Any]] = None):
         self.current_dataset_for_analysis = copy.deepcopy(self.motorcycles_full_dataset_original)
         self.active_restriction_name = None
         if restriction_config:
@@ -113,87 +112,358 @@ class StructureAnalyzer:
                     print(f"AVISO: Subtipo de restrição de dados '{tipo_sub}' não reconhecido.")
 
     def _apply_structure_prototypes_overrides(self, restriction_config: Optional[Dict[str, Any]] = None):
-        # ... (código como na sua última versão funcional) ...
         self.active_prototypes = self.structures_prototypes_base.copy()
         if not restriction_config: return
-        tipo_cat = restriction_config.get("tipo_categoria")
-        subtipo = restriction_config.get("subtipo") or restriction_config.get("tipo")
+        tipo_cat = restriction_config.get("tipo_categoria");
+        subtipo = restriction_config.get("subtipo") or restriction_config.get("tipo");
         params = restriction_config.get("params", {})
         if tipo_cat == "memoria":
-            # ... (lógica para limite_tamanho_hash, descarte_lru_lista) ...
-            # Esta parte é complexa e depende de como suas estruturas e restricao_memoria.py estão.
-            # Exemplo simplificado para limite_tamanho_hash:
-            if subtipo == "limite_tamanho_hash":
-                max_elements = params.get("max_elementos")
-                original_constructor = self.structures_prototypes_base['HashTable']
-
-                def limited_hash_constructor():
-                    ht = original_constructor()
-                    ht.max_elements_override = max_elements  # Atributo dinâmico
-                    # ... (monkey patch inserir) ...
-                    return ht
-
-                # self.active_prototypes['HashTable'] = limited_hash_constructor # Comentado por complexidade
-                print(f"INFO (Restrição Memória): HashTable com limite {max_elements} (necessita wrapper/modificação).")
+            if subtipo == "limite_tamanho_hash" and 'HashTable' in self.active_prototypes:
+                max_el = params.get("max_elementos", 500)
+                print(f"INFO (MEM): Aplicando limite de {max_el} elementos para HashTable.")
+                self.active_prototypes['HashTable'] = restricao_memoria.criar_hashtable_limitada_factory(
+                    lambda_base=self.structures_prototypes_base['HashTable'], max_elementos=max_el)
+            elif subtipo == "descarte_lru_lista_geral" and 'LinkedList' in self.active_prototypes:
+                cap_lista = params.get("capacidade_lista", 1000)
+                print(f"INFO (MEM): Aplicando capacidade LRU de {cap_lista} para LinkedList.")
+                self.active_prototypes['LinkedList'] = restricao_memoria.criar_linkedlist_lru_factory(
+                    capacidade=cap_lista)
         elif tipo_cat == "algoritmica":
-            # ... (lógica para hash_fator_carga_baixo, limitar_passos_busca_arvore) ...
-            if subtipo == "limitar_passos_busca_arvore":
-                max_passos = params.get("max_passos")
-                print(
-                    f"INFO (Restrição Algorítmica): Busca em árvores pode ser limitada a {max_passos} (necessita modificação nas árvores).")
+            if subtipo == "hash_fator_carga_alto" and 'HashTable' in self.active_prototypes:
+                fator_c = params.get("fator_carga", 0.9)
+                print(f"INFO (ALGO): Configurando HashTable com fator de carga máx: {fator_c}.")
+                base_cap_lambda = self.structures_prototypes_base[
+                    'HashTable']  # Para pegar a lógica de capacidade original
+                self.active_prototypes['HashTable'] = lambda: HashTable(
+                    capacidade=max(101,
+                                   len(self.current_dataset_for_analysis) // 10 if self.current_dataset_for_analysis else 101),
+                    # Usa a lógica de capacidade
+                    fator_carga_max=fator_c)
+            elif subtipo == "limitar_passos_busca_arvore":
+                max_p = params.get("max_passos", 5);
+                restricao_algoritmica.configurar_limite_passos_busca_arvore(max_p)
+                print(f"INFO (ALGO): Busca em árvores (AVL, BTree) limitada a {max_p} passos.")
+        # É importante que os módulos de restrição (ex: restricao_algoritmica) realmente modifiquem o comportamento
+        # das estruturas ou suas chamadas, possivelmente através de wrappers ou monkey patching (com cuidado).
 
-    def initialize_all_structures(self, sample_size: Optional[int] = None, verbose: bool = True) -> None:
-        # ... (código como na sua última versão funcional, corrigido) ...
-        # ... (Garantir que 'actual_sample_size' é usado consistentemente) ...
-        # ... (Garantir que structure_instance é chamado da factory correta de self.active_prototypes) ...
-        # (Vou usar uma versão ligeiramente simplificada para focar na estrutura e correções de sintaxe)
+    def initialize_all_structures(self, sample_size: Optional[int] = None, verbose: bool = True):
         if not self.current_dataset_for_analysis:
             if verbose: print("Dataset de análise atual está vazio."); return
         actual_sample_size = sample_size if sample_size is not None else len(self.current_dataset_for_analysis)
         actual_sample_size = min(actual_sample_size, len(self.current_dataset_for_analysis))
         if actual_sample_size <= 0: actual_sample_size = 1 if len(self.current_dataset_for_analysis) > 0 else 0
-
         sample_to_insert = []
-        if actual_sample_size > 0 and self.current_dataset_for_analysis:  # Só pega amostra se houver de onde
-            sample_to_insert = random.sample(self.current_dataset_for_analysis, actual_sample_size)
-
+        if actual_sample_size > 0 and self.current_dataset_for_analysis:
+            try:
+                sample_to_insert = random.sample(self.current_dataset_for_analysis, actual_sample_size)
+            except ValueError:
+                if verbose: print(f"AVISO: Erro ao criar amostra. Usando dataset completo.");
+                actual_sample_size = len(self.current_dataset_for_analysis);
+                sample_to_insert = self.current_dataset_for_analysis
         self.last_init_sample_size = actual_sample_size
         dataset_info = f"(Dataset: {self.active_restriction_name or 'Original'})"
         if verbose: print(f"\n⏳ Inicializando com {actual_sample_size} motos {dataset_info} e medindo...")
         self.initialized_structures.clear();
         self.performance_results.clear()
-
         for name, structure_constructor_factory in self.active_prototypes.items():
             if verbose: print(f"\n  Inicializando {name}...")
             structure_instance = structure_constructor_factory()
-            # ... (lógica de override de HashTable e Árvores como antes, se necessário e implementado) ...
-
             insertion_metrics_list = [];
             total_insertion_time = 0.0;
             max_peak_memory_during_init = 0.0
+            num_actually_inserted_in_struct = 0
             if actual_sample_size > 0 and sample_to_insert:
                 for i, bike_to_insert in enumerate(sample_to_insert):
-                    # ... (medição de inserção) ...
+                    if verbose and (i + 1) % (max(1, actual_sample_size // 10)) == 0:
+                        print(f"    Inserindo item {i + 1}/{actual_sample_size} em {name}...")
+                    len_before = len(structure_instance) if hasattr(structure_instance, '__len__') else -1
                     metrics = PerformanceMetrics.measure(structure_instance.inserir, bike_to_insert)
+                    len_after = len(structure_instance) if hasattr(structure_instance, '__len__') else -1
                     insertion_metrics_list.append({'time': metrics['time'], 'peak_memory': metrics['peak_memory']})
-                    if metrics.get('result', True) is not False:  # Considera que inserir pode falhar e não contar tempo
-                        total_insertion_time += metrics['time']
                     if metrics['peak_memory'] > max_peak_memory_during_init: max_peak_memory_during_init = metrics[
                         'peak_memory']
-
-            num_inserted_successfully = len(structure_instance) if hasattr(structure_instance,
-                                                                           '__len__') else actual_sample_size
-            avg_insert_time = total_insertion_time / num_inserted_successfully if num_inserted_successfully > 0 else 0.0
-
+                    if len_after == -1 or len_after > len_before or metrics.get('result') is not False:
+                        total_insertion_time += metrics['time']
+                        if len_after > len_before or len_after == -1: num_actually_inserted_in_struct += 1
+            if num_actually_inserted_in_struct == 0 and actual_sample_size > 0:
+                if verbose: print(
+                    f"    AVISO: Nenhum item parece ter sido inserido em {name}. Média de inserção será 0.")
+                avg_insert_time = 0.0
+                if not hasattr(structure_instance,
+                               '__len__'): avg_insert_time = total_insertion_time / actual_sample_size if actual_sample_size > 0 and total_insertion_time > 0 else 0.0
+            else:
+                avg_insert_time = total_insertion_time / num_actually_inserted_in_struct if num_actually_inserted_in_struct > 0 else 0.0
             self.initialized_structures[name] = structure_instance
             self.performance_results[name] = {'initialization': {
                 'sample_size': actual_sample_size, 'total_time_ms': total_insertion_time,
                 'avg_insert_time_ms': avg_insert_time, 'peak_memory_init_kb': max_peak_memory_during_init,
                 'insertion_evolution_data': insertion_metrics_list}}
+            len_final_struct = len(structure_instance) if hasattr(structure_instance, '__len__') else 'N/A'
             if verbose: print(
-                f"  {name} inicializado. Média inserção: {avg_insert_time:.4f} ms. Pico Memória: {max_peak_memory_during_init:.2f} KB")
+                f"  {name} inicializado. Itens na estrutura: {len_final_struct}. Média inserção: {avg_insert_time:.4f} ms. Pico Memória: {max_peak_memory_during_init:.2f} KB")
 
-    # ... (run_benchmark_operations como na sua última versão funcional - sem necessidade de grandes mudanças aqui) ...
+    # --- MÉTODO run_benchmark_operations CORRETAMENTE POSICIONADO E COMPLETO ---
+    def run_benchmark_operations(self, num_operations: int = 100, verbose: bool = True) -> None:
+        if not self.initialized_structures:
+            if verbose: print("AVISO: Estruturas não inicializadas. Execute a inicialização primeiro.")
+            return
+        if not self.current_dataset_for_analysis:
+            if verbose: print(
+                "AVISO: Dataset de análise atual está vazio. Benchmarks de operações não podem ser executados.")
+            return
+        actual_num_operations = min(num_operations, len(self.current_dataset_for_analysis))
+        if actual_num_operations <= 0:
+            if verbose: print(f"AVISO: Nenhuma operação de benchmark a ser executada (n_ops={actual_num_operations}).")
+            return
+        sample_for_search_remove = random.sample(self.current_dataset_for_analysis, actual_num_operations)
+        sample_for_new_insertion = [
+            Moto(f"MARCA_BENCH_{i}", f"MODELO_BENCH_{i}", 15000 + i * 10, 12000 + i * 8, 2028 + i) for i in
+            range(actual_num_operations)]
+        dataset_info = f"(Dataset: {self.active_restriction_name or 'Original'})";
+        if verbose: print(
+            f"\n⚙️ Executando benchmarks de operações ({actual_num_operations} de cada) {dataset_info}...")
+        for name, structure in self.initialized_structures.items():
+            if verbose: print(f"\n  Analisando {name}:"); op_results_summary = {}
+            if hasattr(structure, 'buscar'):
+                s_t, s_m = [], [];
+                for b in sample_for_search_remove: m = PerformanceMetrics.measure(structure.buscar, b);s_t.append(
+                    m['time']);s_m.append(m['peak_memory'])
+                op_results_summary['search_avg_time_ms'] = sum(
+                    s_t) / actual_num_operations if actual_num_operations else 0.0
+                op_results_summary['search_peak_memory_kb'] = max(s_m) if s_m else 0.0
+                if verbose: print(f"    Busca: Tempo médio {op_results_summary['search_avg_time_ms']:.4f} ms")
+            if hasattr(structure, 'inserir'):
+                i_t, i_m = [], [];
+                for b in sample_for_new_insertion: m = PerformanceMetrics.measure(structure.inserir, b);i_t.append(
+                    m['time']);i_m.append(m['peak_memory'])
+                op_results_summary['new_insertion_avg_time_ms'] = sum(
+                    i_t) / actual_num_operations if actual_num_operations else 0.0
+                op_results_summary['new_insertion_peak_memory_kb'] = max(i_m) if i_m else 0.0
+                if verbose: print(
+                    f"    Nova Inserção: Tempo médio {op_results_summary['new_insertion_avg_time_ms']:.4f} ms")
+            if hasattr(structure, 'remover') and name not in ["BloomFilter"]:
+                r_t, r_m = [], [];
+                for b in sample_for_search_remove: m = PerformanceMetrics.measure(structure.remover, b);r_t.append(
+                    m['time']);r_m.append(m['peak_memory'])
+                op_results_summary['removal_avg_time_ms'] = sum(
+                    r_t) / actual_num_operations if actual_num_operations else 0.0
+                op_results_summary['removal_peak_memory_kb'] = max(r_m) if r_m else 0.0
+                if verbose: print(f"    Remoção: Tempo médio {op_results_summary['removal_avg_time_ms']:.4f} ms" + (
+                    " (BTree placeholder)" if name == "BTree" else ""))
+            if name == 'HashTable' and hasattr(structure, 'obter_estatisticas_colisao'):
+                cs = structure.obter_estatisticas_colisao();
+                op_results_summary['HashTable_collision_stats'] = cs
+                if verbose: print(
+                    f"    Stats Colisão HT: Fator Carga={cs.get('fator_carga_real', 0.0):.2f}, Max Bucket={cs.get('max_comprimento_bucket', 0)}")
+            # Garante que a entrada para a estrutura existe em performance_results
+            self.performance_results.setdefault(name, {'initialization': {}}).update(op_results_summary)
+            if hasattr(structure, 'remover') and name not in ["BloomFilter", "BTree"]:
+                for b_ins in sample_for_new_insertion: structure.remover(b_ins)
+
+    # --- FIM DO run_benchmark_operations ---
+
+    def run_combined_latency_benchmark(self, num_workloads: int = 50, ops_per_workload: int = 3, verbose: bool = True):
+        if not self.initialized_structures:
+            if verbose: print("AVISO: Estruturas não inicializadas para latência."); return
+        min_data_needed = ops_per_workload
+        if not self.current_dataset_for_analysis or len(self.current_dataset_for_analysis) < min_data_needed:
+            if verbose: print(
+                f"AVISO: Dataset ({len(self.current_dataset_for_analysis)}) insuficiente para latência (min {min_data_needed})."); return
+        dataset_info = f"(Dataset: {self.active_restriction_name or 'Original'})"
+        if verbose: print(
+            f"\n⚙️ BENCHMARK DE LATÊNCIA COMBINADA {dataset_info} (Workloads:{num_workloads}, Ops/WL:{ops_per_workload})")
+        for s_name, struct in self.initialized_structures.items():
+            if verbose: print(f"  Testando {s_name}...")
+            if not (hasattr(struct, 'inserir') and hasattr(struct, 'buscar') and
+                    (hasattr(struct, 'remover') or s_name in ["BloomFilter", "BTree"])):
+                if verbose: print(f"    AVISO: {s_name} não suporta todas as ops. Pulando.");
+                self.performance_results.setdefault(s_name, {}).update(
+                    {'combined_latency_avg_ms': -1.0, 'notes_lat': 'Ops incompletas'});
+                continue
+            wl_times = []
+            avail_items_sr = random.sample(self.current_dataset_for_analysis,
+                                           min(len(self.current_dataset_for_analysis),
+                                               num_workloads * ops_per_workload))
+            if not avail_items_sr and ops_per_workload > ops_per_workload // 3 + (
+            1 if ops_per_workload % 3 > 0 else 0):  # Se precisa buscar/remover mas não tem de onde
+                if verbose: print(
+                    f"    AVISO: Não há itens suficientes em {s_name} para workload de busca/remoção. Pulando workload para esta estrutura.");
+                self.performance_results.setdefault(s_name, {}).update(
+                    {'combined_latency_avg_ms': -1.0, 'notes_lat': 'Dataset insuficiente para workload'});
+                continue
+
+            for i_wl in range(num_workloads):
+                n_ins = ops_per_workload // 3 + (1 if ops_per_workload % 3 > 0 else 0)
+                n_search = ops_per_workload // 3 + (1 if ops_per_workload % 3 > 1 else 0)
+                n_rem = ops_per_workload // 3
+                total_ops_def = n_ins + n_search + n_rem;
+                if total_ops_def < ops_per_workload: n_ins += (ops_per_workload - total_ops_def)
+
+                items_ins_wl = [Moto(f"LAT_M{i_wl}_{j}", f"LAT_N{i_wl}_{j}", 1 + j, 1 + j, 2030 + j) for j in
+                                range(n_ins)]
+                items_search_wl = random.sample(avail_items_sr, min(len(avail_items_sr),
+                                                                    n_search)) if avail_items_sr and n_search > 0 else []
+                rem_for_rm = [it for it in avail_items_sr if it not in items_search_wl]
+                items_rem_wl = random.sample(rem_for_rm,
+                                             min(len(rem_for_rm), n_rem)) if rem_for_rm and n_rem > 0 else []
+
+                curr_wl_ops = [('insert', item) for item in items_ins_wl] + [('search', item) for item in
+                                                                             items_search_wl] + [('remove', item) for
+                                                                                                 item in items_rem_wl]
+                random.shuffle(curr_wl_ops)
+
+                t_start_wl = time.perf_counter();
+                inserted_this_wl = []
+                for op_t, item_d in curr_wl_ops:
+                    if op_t == 'insert':
+                        PerformanceMetrics.measure(struct.inserir, item_d); inserted_this_wl.append(item_d)
+                    elif op_t == 'search':
+                        PerformanceMetrics.measure(struct.buscar, item_d)
+                    elif op_t == 'remove' and hasattr(struct, 'remover') and s_name not in ["BloomFilter", "BTree"]:
+                        PerformanceMetrics.measure(struct.remover, item_d)
+                wl_times.append((time.perf_counter() - t_start_wl) * 1000)
+                if hasattr(struct, 'remover') and s_name not in ["BloomFilter", "BTree"]:
+                    for item_i in inserted_this_wl: struct.remover(item_i)
+            avg_wl_t = sum(wl_times) / num_workloads if num_workloads > 0 and wl_times else 0.0
+            self.performance_results.setdefault(s_name, {}).update({'combined_latency_avg_ms': avg_wl_t})
+            if verbose: print(f"    Latência Combinada: Média Workload = {avg_wl_t:.4f} ms")
+
+    def run_random_access_benchmark(self, num_accesses: int = 100, verbose: bool = True):
+        if not self.initialized_structures:
+            if verbose: print("AVISO: Estruturas não inicializadas para acesso aleatório."); return
+        dataset_info = f"(Dataset: {self.active_restriction_name or 'Original'})"
+        if verbose: print(f"\n⚙️ BENCHMARK DE ACESSO ALEATÓRIO {dataset_info} (Acessos: {num_accesses})")
+        for s_name, struct in self.initialized_structures.items():
+            if verbose: print(f"  Testando {s_name}...")
+            if not hasattr(struct, 'buscar'):
+                if verbose: print(f"    AVISO: {s_name} não suporta busca. Pulando.");
+                self.performance_results.setdefault(s_name, {}).update(
+                    {'random_access_avg_time_ms': -1.0, 'notes_ra': 'Busca não suportada'});
+                continue
+            items_in_struct_approx = []
+            if self.current_dataset_for_analysis and self.last_init_sample_size:
+                s_from_size = min(self.last_init_sample_size, len(self.current_dataset_for_analysis))
+                if s_from_size > 0: items_in_struct_approx = random.sample(self.current_dataset_for_analysis,
+                                                                           s_from_size)
+            if not items_in_struct_approx:
+                if verbose: print(f"    AVISO: {s_name} vazia/pequena. Pulando.");
+                self.performance_results.setdefault(s_name, {}).update(
+                    {'random_access_avg_time_ms': -1.0, 'notes_ra': 'Estrutura vazia'});
+                continue
+            actual_n_acc = min(num_accesses, len(items_in_struct_approx))
+            if actual_n_acc == 0:
+                if verbose: print(f"    AVISO: Insuficiente em {s_name} para acessos. Pulando.");
+                self.performance_results.setdefault(s_name, {}).update(
+                    {'random_access_avg_time_ms': -1.0, 'notes_ra': 'Insuficientes'});
+                continue
+            items_to_acc = random.sample(items_in_struct_approx, actual_n_acc);
+            acc_times = []
+            for item_d in items_to_acc: mets = PerformanceMetrics.measure(struct.buscar, item_d); acc_times.append(
+                mets['time'])
+            avg_acc_t = sum(acc_times) / actual_n_acc if actual_n_acc > 0 and acc_times else 0.0
+            self.performance_results.setdefault(s_name, {}).update({'random_access_avg_time_ms': avg_acc_t})
+            if verbose: print(f"    Acesso Aleatório: Média Acesso = {avg_acc_t:.4f} ms")
+
+    def run_benchmark_operations(self, num_operations: int = 100, verbose: bool = True) -> None:
+            """
+            Executa benchmarks padrão de busca, nova inserção e remoção.
+            Usa o self.current_dataset_for_analysis para amostras.
+            """
+            if not self.initialized_structures:
+                if verbose: print("AVISO: Estruturas não inicializadas. Execute a inicialização primeiro.")
+                return
+            if not self.current_dataset_for_analysis:
+                if verbose: print(
+                    "AVISO: Dataset de análise atual está vazio. Benchmarks de operações não podem ser executados.")
+                return
+
+            actual_num_operations = min(num_operations, len(self.current_dataset_for_analysis))
+            if actual_num_operations <= 0:
+                if verbose: print(
+                    f"AVISO: Nenhuma operação de benchmark a ser executada (n_ops={actual_num_operations}).")
+                return
+
+            # Amostras para busca e remoção são retiradas do dataset de análise atual
+            sample_for_search_remove = random.sample(self.current_dataset_for_analysis, actual_num_operations)
+
+            # Amostras para nova inserção são geradas artificialmente
+            sample_for_new_insertion = [
+                Moto(marca=f"MARCA_BENCH_{i}", nome=f"MODELO_BENCH_{i}",
+                     preco=15000 + i * 10, revenda=12000 + i * 8, ano=2028 + i)
+                for i in range(actual_num_operations)
+            ]
+
+            dataset_info = f"(Dataset: {self.active_restriction_name or 'Original'})"
+            if verbose: print(
+                f"\n⚙️ Executando benchmarks de operações ({actual_num_operations} de cada) {dataset_info}...")
+
+            for name, structure in self.initialized_structures.items():
+                if verbose: print(f"\n  Analisando {name}:")
+                op_results_summary = {}  # Para armazenar os resultados desta estrutura
+
+                # Teste de Busca
+                if hasattr(structure, 'buscar'):
+                    search_times, search_mems = [], []
+                    for bike_to_search in sample_for_search_remove:
+                        metrics = PerformanceMetrics.measure(structure.buscar, bike_to_search)
+                        search_times.append(metrics['time'])
+                        search_mems.append(metrics['peak_memory'])
+                    op_results_summary['search_avg_time_ms'] = sum(
+                        search_times) / actual_num_operations if actual_num_operations else 0.0
+                    op_results_summary['search_peak_memory_kb'] = max(search_mems) if search_mems else 0.0
+                    if verbose: print(f"    Busca: Tempo médio {op_results_summary['search_avg_time_ms']:.4f} ms")
+
+                # Teste de Nova Inserção
+                if hasattr(structure, 'inserir'):
+                    insert_times, insert_mems = [], []
+                    for new_bike in sample_for_new_insertion:
+                        metrics = PerformanceMetrics.measure(structure.inserir, new_bike)
+                        insert_times.append(metrics['time'])
+                        insert_mems.append(metrics['peak_memory'])
+                    op_results_summary['new_insertion_avg_time_ms'] = sum(
+                        insert_times) / actual_num_operations if actual_num_operations else 0.0
+                    op_results_summary['new_insertion_peak_memory_kb'] = max(insert_mems) if insert_mems else 0.0
+                    if verbose: print(
+                        f"    Nova Inserção: Tempo médio {op_results_summary['new_insertion_avg_time_ms']:.4f} ms")
+
+                # Teste de Remoção
+                if hasattr(structure, 'remover') and name not in ["BloomFilter"]:  # BloomFilter não tem remover
+                    remove_times, remove_mems = [], []
+                    # Tenta remover os mesmos itens que foram usados para a busca
+                    for bike_to_remove in sample_for_search_remove:
+                        metrics = PerformanceMetrics.measure(structure.remover, bike_to_remove)
+                        remove_times.append(metrics['time'])
+                        remove_mems.append(metrics['peak_memory'])
+                    op_results_summary['removal_avg_time_ms'] = sum(
+                        remove_times) / actual_num_operations if actual_num_operations else 0.0
+                    op_results_summary['removal_peak_memory_kb'] = max(remove_mems) if remove_mems else 0.0
+                    if verbose: print(f"    Remoção: Tempo médio {op_results_summary['removal_avg_time_ms']:.4f} ms" +
+                                      (" (Nota: Remoção em BTree é placeholder)" if name == "BTree" else ""))
+
+                # Adiciona estatísticas de colisão para HashTable
+                if name == 'HashTable' and hasattr(structure, 'obter_estatisticas_colisao'):
+                    collision_stats = structure.obter_estatisticas_colisao()
+                    op_results_summary['HashTable_collision_stats'] = collision_stats
+                    if verbose:
+                        print(f"    Estatísticas de Colisão HashTable:")
+                        print(f"      Fator de Carga: {collision_stats.get('fator_carga_real', 0.0):.2f}")
+                        print(f"      Max Comprimento Bucket: {collision_stats.get('max_comprimento_bucket', 0)}")
+                        print(
+                            f"      % Buckets com Colisão (de Ocupados): {collision_stats.get('percent_buckets_com_colisao_de_ocupados', 0.0):.2f}%")
+
+                # Atualiza o dicionário principal de resultados de performance
+                if name in self.performance_results:
+                    self.performance_results[name].update(op_results_summary)
+                else:
+                    # Isso pode acontecer se initialize_all_structures não criou a entrada ainda
+                    # (embora no fluxo normal, deveria ter criado)
+                    self.performance_results[name] = {'initialization': {}, **op_results_summary}
+
+                # Limpa as motos de "nova inserção" que foram adicionadas durante este benchmark
+                # para não poluir as estruturas para testes subsequentes.
+                if hasattr(structure, 'remover') and name not in ["BloomFilter", "BTree"]:
+                    for new_bike_inserted in sample_for_new_insertion:
+                        structure.remover(new_bike_inserted)  # Tenta remover
 
     # --- Funções de Geração de Gráficos CORRIGIDAS ---
     def _generate_performance_report_table(self) -> None:
@@ -226,6 +496,8 @@ class StructureAnalyzer:
             print(f"  Max Compr Bucket: {ht_s.get('max_comprimento_bucket', 0)}");
             print(f"  Compr Médio (Ocupados): {ht_s.get('avg_comprimento_bucket_ocupado', 0.0):.2f}");
             print("=" * 70)
+
+
 
     def _generate_comparison_charts(self) -> None:
         if plt is None: print("Matplotlib pyplot não está disponível. Gráficos não podem ser gerados."); return
@@ -580,6 +852,122 @@ class StructureAnalyzer:
         print("\n🏁 Análise Padrão Concluída! 🏁")
 
 
+
+    def _generate_extra_benchmarks_report(self) -> None:
+        """Gera um relatório para os benchmarks de latência e acesso aleatório."""
+        print("\n\n📊 RELATÓRIO DE BENCHMARKS ADICIONAIS 📊")
+        restriction_info = f" (Sob Restrição: {self.active_restriction_name})" if self.active_restriction_name else ""
+
+        if self.latency_benchmark_results:
+            print(f"\n--- Latência Combinada Média por Workload{restriction_info} ---")
+            print("{:<20} | {:<25}".format("Estrutura", "Tempo Médio Workload (ms)"))
+            print("-" * 50)
+            for name, results in sorted(self.latency_benchmark_results.items()):
+                if results.get('avg_workload_time_ms', -1) == -1:
+                    print(f"{name:<20} | {results.get('notes', 'N/A'):<25}")
+                else:
+                    print(f"{name:<20} | {results.get('avg_workload_time_ms', 0.0):<25.4f}")
+            print("-" * 50)
+
+        if self.random_access_benchmark_results:
+            print(f"\n--- Acesso Aleatório Médio por Busca{restriction_info} ---")
+            print("{:<20} | {:<25}".format("Estrutura", "Tempo Médio Acesso (ms)"))
+            print("-" * 50)
+            for name, results in sorted(self.random_access_benchmark_results.items()):
+                if results.get('avg_access_time_ms', -1) == -1:
+                    print(f"{name:<20} | {results.get('notes', 'N/A'):<25}")
+                else:
+                    print(f"{name:<20} | {results.get('avg_access_time_ms', 0.0):<25.4f}")
+            print("-" * 50)
+
+        if not self.latency_benchmark_results and not self.random_access_benchmark_results:
+            print("Nenhum resultado de benchmark adicional para exibir.")
+
+    def run_full_analysis_suite(self,
+                                init_sample_size: Optional[int] = 1000,
+                                benchmark_ops_count: int = 100,
+                                run_latency_bench: bool = False,  # NOVO
+                                latency_workloads: int = 50,  # NOVO
+                                latency_ops_per_wl: int = 3,  # NOVO
+                                run_random_access_bench: bool = False,  # NOVO
+                                random_access_count: int = 100,  # NOVO
+                                run_scalability_flag: bool = False,  # Mantido
+                                scalability_sizes: Optional[List[int]] = None  # Mantido
+                                ):
+        print("\n🚀 SUÍTE DE ANÁLISE 🚀")
+        self._prepare_dataset_for_analysis(None)  # Garante dataset original para esta suíte padrão
+
+        self.initialize_all_structures(sample_size=init_sample_size)
+        self.run_benchmark_operations(num_operations=benchmark_ops_count)  # Benchmarks padrão
+
+        if run_latency_bench:
+            self.run_combined_latency_benchmark(num_workloads=latency_workloads, ops_per_workload=latency_ops_per_wl)
+        if run_random_access_bench:
+            self.run_random_access_benchmark(num_accesses=random_access_count)
+
+        print("\n📋 Gerando Relatórios e Gráficos Padrão...");
+        self._generate_performance_report_table()
+        self._generate_comparison_charts()
+        self._generate_insertion_evolution_charts()
+
+        if run_latency_bench or run_random_access_bench:  # Se algum dos novos benchmarks rodou
+            self._generate_extra_benchmarks_report()
+
+        if run_scalability_flag:  # Mantido separado
+            # Importante: Escalabilidade deve rodar com dataset original e limpo para cada N
+            self._prepare_dataset_for_analysis(None)
+            self.run_scalability_tests(sizes_to_test=scalability_sizes, verbose=True)
+            print("\n📈 Gerando Gráficos de Escalabilidade...")
+            self._generate_scalability_charts(log_scale_plots=True)
+
+        print("\n🏁 Análise Concluída! 🏁")
+
+    def run_suite_with_restriction(self, restriction_config: Dict[str, Any],
+                                   init_sample_size: Optional[int] = None, benchmark_ops_count: int = 100,
+                                   run_latency_bench: bool = False, latency_workloads: int = 50,
+                                   latency_ops_per_wl: int = 3,
+                                   run_random_access_bench: bool = False, random_access_count: int = 100,
+                                   run_scalability_flag: bool = False, scalability_sizes: Optional[List[int]] = None):
+        print(f"\n\n{'=' * 10} EXECUTANDO SUÍTE COM RESTRIÇÃO: {restriction_config.get('nome', 'N/A')} {'=' * 10}")
+        self._prepare_dataset_for_analysis(restriction_config)
+
+        orig_cpu_slow = restricao_processamento.SIMULATED_CPU_SLOWDOWN_FACTOR
+        orig_xtra_loops = restricao_processamento.SIMULATED_EXTRA_COMPUTATION_LOOPS
+        if restriction_config.get("tipo_categoria") == "processamento":
+            if restriction_config.get("subtipo") == "cpu_lenta_delay":
+                restricao_processamento.configurar_lentidao_cpu(**restriction_config.get("params", {}))
+            elif restriction_config.get("subtipo") == "carga_extra":
+                restricao_processamento.configurar_carga_computacional_extra(**restriction_config.get("params", {}))
+
+        self.initialize_all_structures(sample_size=init_sample_size, verbose=True)
+        self.run_benchmark_operations(num_operations=benchmark_ops_count, verbose=True)
+        if run_latency_bench:
+            self.run_combined_latency_benchmark(num_workloads=latency_workloads, ops_per_workload=latency_ops_per_wl,
+                                                verbose=True)
+        if run_random_access_bench:
+            self.run_random_access_benchmark(num_accesses=random_access_count, verbose=True)
+
+        print(f"\n📋 Gerando Relatórios e Gráficos para Restrição: {self.active_restriction_name}...")
+        self._generate_performance_report_table()
+        self._generate_comparison_charts()
+        self._generate_insertion_evolution_charts()
+        if run_latency_bench or run_random_access_bench:
+            self._generate_extra_benchmarks_report()  # Mostra os resultados dos novos benchmarks
+
+        if run_scalability_flag:
+            # Note: Escalabilidade sob restrição usa o dataset já modificado pela restrição
+            self.run_scalability_tests(sizes_to_test=scalability_sizes, verbose=True)
+            print(f"\n📈 Gerando Gráficos de Escalabilidade para Restrição: {self.active_restriction_name}...")
+            self._generate_scalability_charts(log_scale_plots=True)
+
+        if restriction_config.get("tipo_categoria") == "processamento":
+            restricao_processamento.SIMULATED_CPU_SLOWDOWN_FACTOR = orig_cpu_slow
+            restricao_processamento.SIMULATED_EXTRA_COMPUTATION_LOOPS = orig_xtra_loops
+            print("INFO: Restrições de processamento revertidas.")
+        self.active_restriction_name = None
+        self.current_dataset_for_analysis = self.motorcycles_full_dataset_original
+        print(f"\n{'=' * 10} SUÍTE COM RESTRIÇÃO {restriction_config.get('nome', 'N/A')} CONCLUÍDA {'=' * 10}")
+
 CONFIGURACOES_TESTES_RESTRICAO = {
     # --- Categoria 1: Restrição de Memória ---
     "R02_mem_hash_lim_500": {
@@ -690,63 +1078,51 @@ def main_menu_loop(analyzer: StructureAnalyzer, full_dataset: List[Moto]):
                     continue
             menu_estrutura(analyzer.initialized_structures[s_key], s_name, analyzer.motorcycles_full_dataset_original)
 
-        elif escolha == '7':  # Suíte Completa de Análise
+        elif escolha == '7':  # Suíte Completa
             try:
+                print("\n--- Configurar Suíte Completa de Análise ---")
                 default_init_s = analyzer.last_init_sample_size if analyzer.last_init_sample_size is not None else 1000
                 init_s_str = input(
-                    f"Tamanho da amostra para benchmarks (Padrão {default_init_s}. VAZIO = dataset todo): ").strip()
-                init_samp: Optional[int]
-                if not init_s_str:
-                    init_samp = None
-                else:
-                    init_samp = int(init_s_str)
-                    if init_samp <= 0:
-                        print("INFO: Amostra inválida, usando dataset todo.")
-                        init_samp = None
+                    f"Amostra para init/bench padrão (Padrão {default_init_s}. VAZIO=dataset todo): ").strip()
+                init_samp = None if not init_s_str else int(init_s_str)
+                if init_samp is not None and init_samp <= 0: init_samp = None; print(
+                    "INFO: Amostra inválida, usando dataset todo.")
 
-                bench_ops_s = input(f"Operações para benchmarks individuais (padrão 100): ").strip()
-                bench_ops = int(bench_ops_s) if bench_ops_s and bench_ops_s.isdigit() else 100
-                if bench_ops < 0:
-                    print("INFO: Número de operações inválido, usando 100.")
-                    bench_ops = 100
+                b_ops_s = input("Ops para bench padrão (padrão 100): ").strip();
+                b_ops = int(b_ops_s) if b_ops_s else 100
+                if b_ops < 0: b_ops = 100; print("INFO: Ops inválidas, usando 100.")
 
-                run_lat_input = input("Executar benchmark de latência combinada? (s/n, padrão s): ").strip().lower()
-                run_lat_b_flag = not run_lat_input or run_lat_input == 's'
-                num_lat_wl_val, num_ops_per_wl_val = 50, 3
-                if run_lat_b_flag:
-                    lat_wl_s = input(f"  Número de workloads para latência (padrão {num_lat_wl_val}): ").strip()
-                    num_lat_wl_val = int(lat_wl_s) if lat_wl_s and lat_wl_s.isdigit() else num_lat_wl_val
-                    if num_lat_wl_val <= 0: num_lat_wl_val = 50; print(
-                        f"INFO: Workloads latência inválido, usando {num_lat_wl_val}.")
+                # Perguntas para os novos benchmarks
+                run_lat_s = input("Executar benchmark de latência combinada? (s/n, padrão s): ").strip().lower()
+                run_lat = run_lat_s != 'n'  # Padrão para sim
+                lat_wl, lat_ops_wl = 50, 3
+                if run_lat:
+                    lat_wl_s = input(f"  Número de workloads para latência (padrão {lat_wl}): ").strip()
+                    lat_wl = int(lat_wl_s) if lat_wl_s else lat_wl
+                    lat_ops_wl_s = input(f"  Operações TOTAIS por workload de latência (padrão {lat_ops_wl}): ").strip()
+                    lat_ops_wl = int(lat_ops_wl_s) if lat_ops_wl_s else lat_ops_wl
+                    if lat_ops_wl < 2: lat_ops_wl = 2; print(
+                        "INFO: Ops por workload de latência deve ser >= 2. Usando 2.")
 
-                    ops_wl_s = input(
-                        f"  Número de operações TOTAIS por workload de latência (padrão {num_ops_per_wl_val}): ").strip()  # "buscas" -> "operações"
-                    num_ops_per_wl_val = int(ops_wl_s) if ops_wl_s and ops_wl_s.isdigit() else num_ops_per_wl_val
-                    if num_ops_per_wl_val <= 0: num_ops_per_wl_val = 3; print(
-                        f"INFO: Operações/Workload inválido, usando {num_ops_per_wl_val}.")
-
-                run_ra_input = input("Executar benchmark de acesso aleatório? (s/n, padrão s): ").strip().lower()
-                run_ra_b_flag = not run_ra_input or run_ra_input == 's'
-                num_ra_acc_val = 100
-                if run_ra_b_flag:
-                    ra_acc_s = input(f"  Número de acessos aleatórios (padrão {num_ra_acc_val}): ").strip()
-                    num_ra_acc_val = int(ra_acc_s) if ra_acc_s and ra_acc_s.isdigit() else num_ra_acc_val
-                    if num_ra_acc_val <= 0: num_ra_acc_val = 100; print(
-                        f"INFO: Acessos aleatórios inválido, usando {num_ra_acc_val}.")
+                run_ra_s = input("Executar benchmark de acesso aleatório? (s/n, padrão s): ").strip().lower()
+                run_ra = run_ra_s != 'n'  # Padrão para sim
+                ra_count = 100
+                if run_ra:
+                    ra_count_s = input(f"  Número de acessos aleatórios (padrão {ra_count}): ").strip()
+                    ra_count = int(ra_count_s) if ra_count_s else ra_count
 
                 analyzer.run_full_analysis_suite(
-                    init_sample_size=init_samp, benchmark_ops_count=bench_ops,
-                    run_latency_bench_flag=run_lat_b_flag, num_latency_workloads=num_lat_wl_val,
-                    num_ops_per_latency_workload=num_ops_per_wl_val,
-                    run_random_access_bench_flag=run_ra_b_flag,
-                    num_random_accesses=num_ra_acc_val
+                    init_sample_size=init_samp, benchmark_ops_count=b_ops,
+                    run_latency_bench=run_lat, latency_workloads=lat_wl, latency_ops_per_wl=lat_ops_wl,
+                    run_random_access_bench=run_ra, random_access_count=ra_count,
+                    run_scalability_flag=False  # Escalabilidade é uma opção separada (8)
                 )
             except ValueError:
-                print("ERRO: Entrada numérica inválida. Executando com padrões.")
-                analyzer.run_full_analysis_suite(run_latency_bench_flag=True,
-                                                 run_random_access_bench_flag=True)  # Valores padrão da função
+                print("ERRO: Entrada inválida. Executando com padrões.")
+                analyzer.run_full_analysis_suite(init_sample_size=None, benchmark_ops_count=100, run_latency_bench=True,
+                                                 run_random_access_bench=True)
             except Exception as e:
-                print(f"Erro inesperado na suíte de análise: {e}")
+                print(f"Ocorreu um erro inesperado: {e}")
 
         elif escolha == '8':  # Testes de Escalabilidade
             try:
