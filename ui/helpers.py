@@ -103,11 +103,11 @@ def obter_dados_moto(para_busca: bool = False) -> Moto:
         revenda = validar_float("Valor de Revenda (R$): ", min_val=0.0)
         ano = validar_int("Ano de Fabricação: ", min_val=1900, max_val=datetime.date.today().year + 1)
     else:
-        print("Para busca, digite -1 em campos numéricos para 'qualquer valor'.")
-        preco = validar_float("Preço (R$) (-1 para qualquer): ", permitir_negativo_um=True)
-        revenda = validar_float("Valor de Revenda (R$) (-1 para qualquer): ", permitir_negativo_um=True)
+        print("Digite os valores exatos para busca nos respectivos campos.")
+        preco = validar_float("Preço (R$): ", permitir_negativo_um=True)
+        revenda = validar_float("Valor de Revenda (R$): ", permitir_negativo_um=True)
         # Definindo um range seguro para anos na busca, mesmo com -1
-        ano = validar_int("Ano de Fabricação (-1 para qualquer): ", permitir_negativo_um=True)
+        ano = validar_int("Ano de Fabricação: ", permitir_negativo_um=True)
 
     # Criando a moto com todos os parâmetros obrigatórios
     return Moto(marca=marca, nome=nome, preco=preco, revenda=revenda, ano=ano)

@@ -4,18 +4,11 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="8f0dbb33-bf05-4a02-97f0-25bd1c482eda" name="Changes" comment="Agora, foi adicionado as condições restritivas">
+    <list default="true" id="8f0dbb33-bf05-4a02-97f0-25bd1c482eda" name="Changes" comment="Codigo fixo 100% funcional, ancora de backup">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Estruturas/avl_tree.py" beforeDir="false" afterPath="$PROJECT_DIR$/Estruturas/avl_tree.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Estruturas/b_tree_v2.py" beforeDir="false" afterPath="$PROJECT_DIR$/Estruturas/b_tree_v2.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Estruturas/hash_table.py" beforeDir="false" afterPath="$PROJECT_DIR$/Estruturas/hash_table.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Estruturas/linked_list.py" beforeDir="false" afterPath="$PROJECT_DIR$/Estruturas/linked_list.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Estruturas/radix_tree.py" beforeDir="false" afterPath="$PROJECT_DIR$/Estruturas/radix_tree.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/main.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modelos/data_handler.py" beforeDir="false" afterPath="$PROJECT_DIR$/modelos/data_handler.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/modelos/moto.py" beforeDir="false" afterPath="$PROJECT_DIR$/modelos/moto.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/simulacoes/restricao_algoritmica.py" beforeDir="false" afterPath="$PROJECT_DIR$/simulacoes/restricao_algoritmica.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/simulacoes/restricao_processamento.py" beforeDir="false" afterPath="$PROJECT_DIR$/simulacoes/restricao_processamento.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/ui/helpers.py" beforeDir="false" afterPath="$PROJECT_DIR$/ui/helpers.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/ui/menu.py" beforeDir="false" afterPath="$PROJECT_DIR$/ui/menu.py" afterDir="false" />
     </list>
@@ -199,6 +192,7 @@
     <MESSAGE value="Codigo completamente restruturado, mas ficou mais funcional" />
     <MESSAGE value="Adiçõa da Arvore B ao trabs." />
     <MESSAGE value="Agora, foi adicionado as condições restritivas" />
-    <option name="LAST_COMMIT_MESSAGE" value="Agora, foi adicionado as condições restritivas" />
+    <MESSAGE value="Codigo fixo 100% funcional, ancora de backup" />
+    <option name="LAST_COMMIT_MESSAGE" value="Codigo fixo 100% funcional, ancora de backup" />
   </component>
 </project>
