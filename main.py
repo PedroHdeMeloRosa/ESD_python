@@ -1243,7 +1243,7 @@ def main_menu_loop(analyzer: StructureAnalyzer, full_dataset: List[Moto]):
 
 def main():
     print("=" * 50 + "\nBem-vindo ao Sistema de Análise de Estruturas de Dados!\n" + "=" * 50)
-    d_path = os.path.join('data', 'bike_sales_india.csv')
+    d_path = os.path.join('data/bike_sales_india.csv')
     if not os.path.exists(d_path):
         print(f"ERRO CRÍTICO: Dataset '{os.path.abspath(d_path)}' não encontrado!");
         sys.exit(1)

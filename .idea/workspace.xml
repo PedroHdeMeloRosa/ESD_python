@@ -4,10 +4,10 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="8f0dbb33-bf05-4a02-97f0-25bd1c482eda" name="Changes" comment="Codigo fixo 100% funcional, ancora de backup">
+    <list default="true" id="8f0dbb33-bf05-4a02-97f0-25bd1c482eda" name="Changes" comment="Versão Final, corrigida e apurada, falta apenas modificações nos titulos de real para rupia indiana.">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/main.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/simulacoes/restricao_processamento.py" beforeDir="false" afterPath="$PROJECT_DIR$/simulacoes/restricao_processamento.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Estruturas/avl_tree.py" beforeDir="false" afterPath="$PROJECT_DIR$/Estruturas/avl_tree.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Estruturas/radix_tree.py" beforeDir="false" afterPath="$PROJECT_DIR$/Estruturas/radix_tree.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -178,8 +178,19 @@
       <option name="project" value="LOCAL" />
       <updated>1749329536024</updated>
     </task>
-    <option name="localTasksCounter" value="10" />
+    <task id="LOCAL-00010" summary="Versão Final, corrigida e apurada, falta apenas modificações nos titulos de real para rupia indiana.">
+      <option name="closed" value="true" />
+      <created>1749334630328</created>
+      <option name="number" value="00010" />
+      <option name="presentableId" value="LOCAL-00010" />
+      <option name="project" value="LOCAL" />
+      <updated>1749334630328</updated>
+    </task>
+    <option name="localTasksCounter" value="11" />
     <servers />
+  </component>
+  <component name="UnknownFeatures">
+    <option featureType="com.intellij.fileTypeFactory" implementationName="*.spec" />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
     <option name="TAB_STATES">
@@ -198,6 +209,7 @@
     <MESSAGE value="Adiçõa da Arvore B ao trabs." />
     <MESSAGE value="Agora, foi adicionado as condições restritivas" />
     <MESSAGE value="Codigo fixo 100% funcional, ancora de backup" />
-    <option name="LAST_COMMIT_MESSAGE" value="Codigo fixo 100% funcional, ancora de backup" />
+    <MESSAGE value="Versão Final, corrigida e apurada, falta apenas modificações nos titulos de real para rupia indiana." />
+    <option name="LAST_COMMIT_MESSAGE" value="Versão Final, corrigida e apurada, falta apenas modificações nos titulos de real para rupia indiana." />
   </component>
 </project>

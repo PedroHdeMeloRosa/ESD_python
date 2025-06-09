@@ -1,13 +1,15 @@
 # Estruturas/avl_tree.py
 from typing import Optional, Tuple, Any, List
-from modelos.moto import Moto
+from modelos.moto import Moto  # Garanta que Moto está corretamente definida com __lt__, __eq__
 
 
 def _altura_avl(node: Optional['AVLTree.Node']) -> int:
+    """Retorna a altura de um nó, ou 0 se o nó for None."""
     return node.height if node else 0
 
 
-def _atualizar_altura_avl(node: 'AVLTree.Node') -> None:
+def _atualizar_altura_avl(node: Optional['AVLTree.Node']) -> None:
+    """Recalcula e atualiza a altura de um nó com base na altura de seus filhos."""
     if node:
         node.height = 1 + max(_altura_avl(node.left), _altura_avl(node.right))
 
@@ -18,217 +20,255 @@ class AVLTree:
             self.data: Moto = data
             self.left: Optional[AVLTree.Node] = None
             self.right: Optional[AVLTree.Node] = None
-            self.height: int = 1
+            self.height: int = 1  # Altura inicial de um novo nó (folha) é 1
 
-    def __init__(self, max_elements: Optional[int] = None):  # MODIFICADO
+        def __str__(self):  # Para debugging
+            left_data = self.left.data.nome if self.left and self.left.data else "None"
+            right_data = self.right.data.nome if self.right and self.right.data else "None"
+            return (f"Node(data='{self.data.nome}', h={self.height}, "
+                    f"L='{left_data}', R='{right_data}')")
+
+    def __init__(self, max_elements: Optional[int] = None):
         self.root: Optional[AVLTree.Node] = None
         self._count: int = 0
-        self._search_step_limit: Optional[int] = None
-        self.max_elements: Optional[int] = max_elements  # NOVO ATRIBUTO
+        self.max_elements: Optional[int] = max_elements
+        self._search_step_limit: Optional[int] = None  # Para simulação de restrição A1
 
-    def set_search_step_limit(self, limit: Optional[int]):  # NOVO MÉTODO
+    def set_search_step_limit(self, limit: Optional[int]):
         self._search_step_limit = limit
-        # if limit is not None: print(f"INFO (AVLTree): Limite de busca -> {limit} passos.")
-        # else: print("INFO (AVLTree): Limite de busca removido.")
 
-    def _balanceamento(self, node: Optional[Node]) -> int:
-        return _altura_avl(node.left) - _altura_avl(node.right) if node else 0
+    def _fator_balanceamento(self, node: Optional[Node]) -> int:
+        """Calcula o fator de balanceamento de um nó."""
+        if not node:
+            return 0
+        return _altura_avl(node.left) - _altura_avl(node.right)
 
-    def _rotacao_direita(self, y: Node) -> Node:  # ... (sem mudanças)
-        x = y.left;
-        T2 = x.right;
-        x.right = y;
+    def _rotacao_direita(self, y: Node) -> Node:
+        # print(f"Rot_Dir em {y.data.nome}")
+        x = y.left
+        if x is None: return y  # Segurança: não deveria acontecer em chamada válida
+        T2 = x.right
+        x.right = y
         y.left = T2
-        _atualizar_altura_avl(y);
-        _atualizar_altura_avl(x);
+        _atualizar_altura_avl(y)
+        _atualizar_altura_avl(x)
         return x
 
-    def _rotacao_esquerda(self, x: Node) -> Node:  # ... (sem mudanças)
-        y = x.right;
-        T2 = y.left;
-        y.left = x;
+    def _rotacao_esquerda(self, x: Node) -> Node:
+        # print(f"Rot_Esq em {x.data.nome}")
+        y = x.right
+        if y is None: return x  # Segurança
+        T2 = y.left
+        y.left = x
         x.right = T2
-        _atualizar_altura_avl(x);
-        _atualizar_altura_avl(y);
+        _atualizar_altura_avl(x)
+        _atualizar_altura_avl(y)
         return y
 
-    def inserir(self, data: Moto) -> bool:  # (como na última versão corrigida)
+    def inserir(self, data: Moto) -> bool:
         if self.max_elements is not None and self._count >= self.max_elements:
-            return False
-        new_root, inserido_flag = self._inserir(self.root, data)
-        self.root = new_root
-        if inserido_flag:
+            # print(f"INFO (AVL): Limite de {self.max_elements} elementos atingido. {data.nome} não inserido.")
+            return False  # Falha na inserção devido ao limite
+
+        # Chama _inserir e atualiza a raiz e a contagem
+        nova_raiz, foi_inserido = self._inserir_recursivo(self.root, data)
+        self.root = nova_raiz
+        if foi_inserido:
             self._count += 1
-        return inserido_flag
+        return foi_inserido
 
-    def _inserir(self, node: Optional[Node], data: Moto) -> Tuple[Optional[Node], bool]:
-        inserido_flag = False
+    def _inserir_recursivo(self, node: Optional[Node], data: Moto) -> Tuple[Optional[Node], bool]:
         if not node:
-            return self.Node(data), True
+            return self.Node(data), True  # Novo nó criado, inserção bem-sucedida
 
-        if data < node.data:
-            node.left, inserido_flag = self._inserir(node.left, data)
-        elif data > node.data:
-            node.right, inserido_flag = self._inserir(node.right, data)
-        else:
-            if data == node.data:
-                return node, False  # Duplicata
+        inserido_na_subarvore = False
+        if data < node.data:  # Usa __lt__ da Moto (nome, depois preço)
+            node.left, inserido_na_subarvore = self._inserir_recursivo(node.left, data)
+        elif node.data < data:  # data > node.data
+            node.right, inserido_na_subarvore = self._inserir_recursivo(node.right, data)
+        else:  # Chaves de ordenação iguais (mesmo nome e preço)
+            if data == node.data:  # Objeto Moto exato já existe
+                return node, False  # Duplicata, não inseriu
             else:
-                node.right, inserido_flag = self._inserir(node.right, data)  # Política para "quase duplicata"
+                # Política para "quase duplicatas" (mesmo nome/preço, mas objeto diferente)
+                # Inserir à direita (ou esquerda, mas seja consistente).
+                # print(f"DEBUG AVL Inserir: Quase duplicata para {data.nome}, inserindo à direita.")
+                node.right, inserido_na_subarvore = self._inserir_recursivo(node.right, data)
 
-        if not inserido_flag: return node, False
+        if not inserido_na_subarvore:
+            return node, False  # Não houve inserção efetiva na subárvore
 
+        # Atualiza altura do nó atual
         _atualizar_altura_avl(node)
-        balance = self._balanceamento(node)
 
-        # --- LÓGICA DE ROTAÇÃO CORRIGIDA ---
-        if balance > 1:  # Desbalanceado à Esquerda
-            if node.left is None: return node, True  # Segurança, mas indica problema
-            if self._balanceamento(node.left) >= 0:  # LL ou L0
-                return self._rotacao_direita(node), True
-            else:  # LR
-                if node.left is not None:
-                    node.left = self._rotacao_esquerda(node.left)
-                else:
-                    return node, True
-                return self._rotacao_direita(node), True
+        # Obtém fator de balanceamento e aplica rotações se necessário
+        balance = self._fator_balanceamento(node)
 
-        if balance < -1:  # Desbalanceado à Direita
-            if node.right is None: return node, True  # Segurança
-            if self._balanceamento(node.right) <= 0:  # RR ou R0
-                return self._rotacao_esquerda(node), True
-            else:  # RL
-                if node.right is not None:
-                    node.right = self._rotacao_direita(node.right)
-                else:
-                    return node, True
-                return self._rotacao_esquerda(node), True
+        # Caso Esquerda-Esquerda (LL)
+        if balance > 1 and node.left and data < node.left.data:
+            return self._rotacao_direita(node), True
 
-        return node, True
+        # Caso Direita-Direita (RR)
+        if balance < -1 and node.right and node.right.data < data:  # data > node.right.data
+            return self._rotacao_esquerda(node), True
 
-    def _min_value_node(self, node: Node) -> Node:  # ... (sem mudanças)
-        current = node;
-        while current.left: current = current.left; return current
+        # Caso Esquerda-Direita (LR)
+        if balance > 1 and node.left and node.left.data < data:  # data > node.left.data
+            node.left = self._rotacao_esquerda(node.left)
+            return self._rotacao_direita(node), True
 
-    def remover(self, alvo: Moto) -> bool:  # ... (sem mudanças na lógica de remoção em si)
-        new_root, removido = self._remover(self.root, alvo)
-        self.root = new_root
-        if removido: self._count -= 1
-        return removido
+        # Caso Direita-Esquerda (RL)
+        if balance < -1 and node.right and data < node.right.data:
+            node.right = self._rotacao_direita(node.right)
+            return self._rotacao_esquerda(node), True
 
-    def _remover(self, node: Optional[Node], alvo: Moto) -> Tuple[Optional[Node], bool]:
-        if not node: return None, False
-        removido_flag = False
+        return node, True  # Nó está balanceado ou tornou-se balanceado, inserção na subárvore foi bem-sucedida
+
+    def _get_min_value_node(self, node: Node) -> Node:  # Argumento não deve ser None aqui
+        """Retorna o nó com o menor valor na subárvore dada (o mais à esquerda)."""
+        current = node
+        while current.left is not None:
+            current = current.left
+        return current
+
+    def remover(self, alvo: Moto) -> bool:
+        # print(f"DEBUG AVL REMOVER: Iniciando remoção de {alvo.nome}, Raiz: {self.root.data.nome if self.root else 'None'}")
+        self.root, foi_removido = self._remover_recursivo(self.root, alvo)
+        if foi_removido:
+            self._count -= 1
+        # print(f"DEBUG AVL REMOVER: Remoção de {alvo.nome} {'concluída' if foi_removido else 'falhou'}. Novo count: {self._count}")
+        return foi_removido
+
+    def _remover_recursivo(self, node: Optional[Node], alvo: Moto) -> Tuple[Optional[Node], bool]:
+        if not node:
+            return node, False  # Chave não encontrada
+
+        removido_da_subarvore = False
+        node_retorno = node  # Nó a ser retornado (pode mudar após rotações)
 
         if alvo < node.data:
-            node.left, removido_flag = self._remover(node.left, alvo)
-        elif alvo > node.data:
-            node.right, removido_flag = self._remover(node.right, alvo)
-        else:  # alvo tem mesma "posição de ordenação" que node.data
-            print(
-                f"DEBUG REMOVER: Tentando remover {alvo.nome}. Nó atual: {node.data.nome if node else 'NoneNode'}, count: {self._count}")
-            if alvo == node.data:  # Objeto exato encontrado
-                removido_flag = True
-                print(f"DEBUG REMOVER: Objeto exato encontrado: {node.data.nome}")
-                if not node.left or not node.right:  # 0 ou 1 filho
-                    print(f"DEBUG REMOVER: Nó {node.data.nome} tem 0 ou 1 filho.")
-                    temp = node.left if node.left else node.right
-                    # node = None # Não faça isso aqui, o chamador ajusta o pai
-                    return temp, True
-                else:  # 2 filhos
-                    print(
-                        f"DEBUG REMOVER: Nó {node.data.nome} tem 2 filhos. node.right: {'Existe' if node.right else 'None'}")
-                    if node.right is None:  # Segurança extra, não deveria acontecer
-                        print(f"ERRO CRÍTICO REMOVER: Nó {node.data.nome} marcado com 2 filhos, mas node.right é None!")
-                        return node, False  # Evita crash, mas indica bug
+            node.left, removido_da_subarvore = self._remover_recursivo(node.left, alvo)
+            node_retorno = node  # Ainda é o nó original se não houve rotação abaixo
+        elif node.data < alvo:  # alvo > node.data
+            node.right, removido_da_subarvore = self._remover_recursivo(node.right, alvo)
+            node_retorno = node
+        else:  # Chaves de ordenação iguais (mesmo nome, mesmo preço)
+            if alvo == node.data:  # É o objeto exato a ser removido
+                removido_da_subarvore = True  # Marcamos que este nó será tratado
+                # Caso 1: Nó com um filho ou nenhum filho
+                if node.left is None:
+                    # print(f"DEBUG AVL REMOVER: {node.data.nome} - Caso 1 (filho direito ou nenhum)")
+                    temp_node = node.right
+                    node = None  # Para GC, mas o retorno de temp_node é o que importa
+                    return temp_node, True
+                elif node.right is None:
+                    # print(f"DEBUG AVL REMOVER: {node.data.nome} - Caso 1 (filho esquerdo)")
+                    temp_node = node.left
+                    node = None
+                    return temp_node, True
 
-                    temp = self._min_value_node(node.right)
-                    print(f"DEBUG REMOVER: Sucessor encontrado: {temp.data.nome if temp else 'NoneTemp'}")
-                    if temp is None:  # Segurança extra
-                        print(
-                            f"ERRO CRÍTICO REMOVER: _min_value_node retornou None para node.right de {node.data.nome}")
-                        return node, False
+                # Caso 2: Nó com dois filhos
+                # Pega o sucessor em ordem (menor valor na subárvore direita)
+                # print(f"DEBUG AVL REMOVER: {node.data.nome} - Caso 2 (dois filhos)")
+                # node.right NÃO PODE ser None aqui por causa das condições anteriores.
+                temp_sucessor = self._get_min_value_node(node.right)
+                # print(f"DEBUG AVL REMOVER: Sucessor de {node.data.nome} é {temp_sucessor.data.nome}")
 
-                    print(f"DEBUG REMOVER: Copiando {temp.data.nome} para {node.data.nome}")
-                    node.data = temp.data  # Copia dados do sucessor
-                    print(f"DEBUG REMOVER: Removendo recursivamente o sucessor {temp.data.nome} da subárvore direita.")
-                    node.right, _ = self._remover(node.right, temp.data)
+                node.data = temp_sucessor.data  # Copia os dados do sucessor para este nó
+                # Remove o sucessor da subárvore direita
+                # print(f"DEBUG AVL REMOVER: Removendo sucessor {temp_sucessor.data.nome} da subárvore direita.")
+                node.right, _ = self._remover_recursivo(node.right, temp_sucessor.data)
+                node_retorno = node  # O nó atual (com dados do sucessor) é o que permanece
+            else:
+                # Chaves de ordenação iguais, mas não é o objeto exato.
+                # Segue a política de "quase duplicatas" da inserção (geralmente à direita).
+                node.right, removido_da_subarvore = self._remover_recursivo(node.right, alvo)
+                node_retorno = node
 
-        if not node: return node, removido_flag  # Nó foi removido (caso de 0 ou 1 filho)
-        if not removido_flag: return node, False  # Não removeu na sub-árvore, não balancear
+        if not removido_da_subarvore:  # Se não houve remoção efetiva na subárvore
+            return node_retorno, False  # Retorna o nó original (ou o que se tornou node_retorno)
 
-        _atualizar_altura_avl(node)
-        balance = self._balanceamento(node)
+        # Se o nó se tornou None após a remoção de um filho (ex: era folha)
+        if node_retorno is None:  # Esta verificação pode ser redundante se o caso de 0/1 filho já retorna None
+            return None, True
 
-        # Rebalanceamento após remoção (lógica similar à inserção, mas checa balanceamento dos filhos)
-        # Caso Esquerdo (Subárvore direita ficou "mais curta")
-        if balance > 1:
-            if node.left is None:  # Segurança
-                # print("ALERTA AVL: node.left é None com balance > 1 em _remover")
-                return node, True
-            if self._balanceamento(node.left) >= 0:  # LL ou L0 (filho esquerdo balanceado ou pesado à esquerda)
-                return self._rotacao_direita(node), True
-            else:  # LR (filho esquerdo pesado à direita)
-                if node.left is not None:
-                    node.left = self._rotacao_esquerda(node.left)
-                else:  # print("ALERTA AVL: node.left é None em _remover caso LR");
-                    return node, True
-                return self._rotacao_direita(node), True
+        # Atualizar altura do nó atual (que agora é node_retorno)
+        _atualizar_altura_avl(node_retorno)
 
-        # Caso Direito (Subárvore esquerda ficou "mais curta")
-        if balance < -1:
-            if node.right is None:  # Segurança
-                # print("ALERTA AVL: node.right é None com balance < -1 em _remover")
-                return node, True
-            if self._balanceamento(node.right) <= 0:  # RR ou R0
-                return self._rotacao_esquerda(node), True
-            else:  # RL
-                if node.right is not None:
-                    node.right = self._rotacao_direita(node.right)
-                else:  # print("ALERTA AVL: node.right é None em _remover caso RL");
-                    return node, True
-                return self._rotacao_esquerda(node), True
+        # Obter fator de balanceamento e rebalancear
+        balance = self._fator_balanceamento(node_retorno)
 
-        return node, True
+        # Caso Esquerda-Esquerda (LL) ou Esquerda-Zero (L0)
+        if balance > 1 and self._fator_balanceamento(node_retorno.left) >= 0:
+            # print(f"DEBUG AVL REMOVER: Rebalanceando LL/L0 em {node_retorno.data.nome}")
+            return self._rotacao_direita(node_retorno), True
 
-    def _buscar_recursive(self, node: Optional[Node], alvo: Moto, passos_ref: List[int]) -> bool:
-        if not node: return False
-        passos_ref[0] += 1
-        if self._search_step_limit is not None and passos_ref[0] > self._search_step_limit:  # MODIFICADO: Checa A1
-            return False
-        if alvo == node.data: return True
-        if alvo < node.data:
-            return self._buscar_recursive(node.left, alvo, passos_ref)
-        else:
-            return self._buscar_recursive(node.right, alvo, passos_ref)
+        # Caso Esquerda-Direita (LR)
+        if balance > 1 and self._fator_balanceamento(node_retorno.left) < 0:
+            # print(f"DEBUG AVL REMOVER: Rebalanceando LR em {node_retorno.data.nome}")
+            if node_retorno.left: node_retorno.left = self._rotacao_esquerda(node_retorno.left)
+            return self._rotacao_direita(node_retorno), True
+
+        # Caso Direita-Direita (RR) ou Direita-Zero (R0)
+        if balance < -1 and self._fator_balanceamento(node_retorno.right) <= 0:
+            # print(f"DEBUG AVL REMOVER: Rebalanceando RR/R0 em {node_retorno.data.nome}")
+            return self._rotacao_esquerda(node_retorno), True
+
+        # Caso Direita-Esquerda (RL)
+        if balance < -1 and self._fator_balanceamento(node_retorno.right) > 0:
+            # print(f"DEBUG AVL REMOVER: Rebalanceando RL em {node_retorno.data.nome}")
+            if node_retorno.right: node_retorno.right = self._rotacao_direita(node_retorno.right)
+            return self._rotacao_esquerda(node_retorno), True
+
+        return node_retorno, True  # Retorna nó (possivelmente balanceado) e que remoção ocorreu
 
     def buscar(self, alvo: Moto) -> Tuple[bool, int]:
-        passos_container = [0]
-        encontrado = self._buscar_recursive(self.root, alvo, passos_container)
+        passos_container = [0]  # Usar lista para passar por referência em Python
+        encontrado = self._buscar_recursivo_com_limite(self.root, alvo, passos_container)
         return encontrado, passos_container[0]
 
-    def exibir(self) -> None:  # ... (sem mudanças)
+    def _buscar_recursivo_com_limite(self, node: Optional[Node], alvo: Moto, passos_ref: List[int]) -> bool:
+        if not node:
+            return False
+
+        passos_ref[0] += 1  # Conta cada nó visitado/comparado
+
+        # Verifica limite de passos para simulação de restrição A1
+        if self._search_step_limit is not None and passos_ref[0] > self._search_step_limit:
+            # print(f"DEBUG AVL BUSCAR: Limite de {self._search_step_limit} passos atingido.")
+            return False  # Limite de passos atingido, considera não encontrado
+
+        if alvo == node.data:  # Comparação exata do objeto Moto
+            return True
+        elif alvo < node.data:  # Usa __lt__ da Moto
+            return self._buscar_recursivo_com_limite(node.left, alvo, passos_ref)
+        else:  # alvo > node.data
+            return self._buscar_recursivo_com_limite(node.right, alvo, passos_ref)
+
+    def exibir(self) -> None:
         if not self.root: print("Árvore AVL vazia!"); return
         print(f"\n{'=' * 70}\n=== ÁRVORE AVL (Elementos: {self._count}) ===")
         print(f"{'Marca':<15}{'Modelo':<20}{'Preço (R$)':<12}{'Revenda (R$)':<15}{'Ano':<6}\n{'-' * 70}")
-        self._displayed_count = 0;
-        self._em_ordem(self.root)
-        if self._count > self._displayed_count: print(
-            f"... e mais {self._count - self._displayed_count} motos não exibidas.")
+        self._displayed_count = 0
+        self._exibir_em_ordem(self.root)
+        if self._count > self._displayed_count:
+            print(
+                f"... e mais {self._count - self._displayed_count} motos não exibidas ({self._displayed_count}/{self._count}).")
         print("=" * 70)
 
-    def _em_ordem(self, node: Optional[Node]) -> None:  # ... (sem mudanças)
+    def _exibir_em_ordem(self, node: Optional[Node]) -> None:
         if node and self._displayed_count < 50:
-            self._em_ordem(node.left)
-            if self._displayed_count < 50:
-                m = node.data;
+            self._exibir_em_ordem(node.left)
+            if self._displayed_count < 50:  # Checa de novo após chamada recursiva à esquerda
+                m = node.data
                 print(f"{m.marca:<15}{m.nome:<20}{m.preco:<12.2f}{m.revenda:<15.2f}{m.ano:<6}")
                 self._displayed_count += 1
-                if self._displayed_count < 50: self._em_ordem(node.right)
-            else:
-                return
-        elif node and self._displayed_count >= 50:
-            return
+                if self._displayed_count < 50:  # Checa antes de ir para a direita
+                    self._exibir_em_ordem(node.right)
+            # else: # Se limite atingido após recursão esquerda, não continua
+            #     return
+        # elif node and self._displayed_count >= 50: # Se já começou com limite atingido
+        #     return
 
     def __len__(self) -> int:
         return self._count
