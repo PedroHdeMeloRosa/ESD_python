@@ -4,10 +4,16 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="8f0dbb33-bf05-4a02-97f0-25bd1c482eda" name="Changes" comment="Versão Final, corrigida e apurada, falta apenas modificações nos titulos de real para rupia indiana.">
+    <list default="true" id="8f0dbb33-bf05-4a02-97f0-25bd1c482eda" name="Changes" comment="Mudança minima no path, acho q é isso que não deixa ele ler  no auto-py">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Estruturas/avl_tree.py" beforeDir="false" afterPath="$PROJECT_DIR$/Estruturas/avl_tree.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Estruturas/radix_tree.py" beforeDir="false" afterPath="$PROJECT_DIR$/Estruturas/radix_tree.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Estruturas/b_tree_v2.py" beforeDir="false" afterPath="$PROJECT_DIR$/Estruturas/b_tree_v2.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Estruturas/hash_table.py" beforeDir="false" afterPath="$PROJECT_DIR$/Estruturas/hash_table.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Estruturas/linked_list.py" beforeDir="false" afterPath="$PROJECT_DIR$/Estruturas/linked_list.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/main.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/modelos/moto.py" beforeDir="false" afterPath="$PROJECT_DIR$/modelos/moto.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ui/helpers.py" beforeDir="false" afterPath="$PROJECT_DIR$/ui/helpers.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ui/menu.py" beforeDir="false" afterPath="$PROJECT_DIR$/ui/menu.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -186,7 +192,15 @@
       <option name="project" value="LOCAL" />
       <updated>1749334630328</updated>
     </task>
-    <option name="localTasksCounter" value="11" />
+    <task id="LOCAL-00011" summary="Mudança minima no path, acho q é isso que não deixa ele ler  no auto-py">
+      <option name="closed" value="true" />
+      <created>1749439300431</created>
+      <option name="number" value="00011" />
+      <option name="presentableId" value="LOCAL-00011" />
+      <option name="project" value="LOCAL" />
+      <updated>1749439300431</updated>
+    </task>
+    <option name="localTasksCounter" value="12" />
     <servers />
   </component>
   <component name="UnknownFeatures">
@@ -210,6 +224,7 @@
     <MESSAGE value="Agora, foi adicionado as condições restritivas" />
     <MESSAGE value="Codigo fixo 100% funcional, ancora de backup" />
     <MESSAGE value="Versão Final, corrigida e apurada, falta apenas modificações nos titulos de real para rupia indiana." />
-    <option name="LAST_COMMIT_MESSAGE" value="Versão Final, corrigida e apurada, falta apenas modificações nos titulos de real para rupia indiana." />
+    <MESSAGE value="Mudança minima no path, acho q é isso que não deixa ele ler  no auto-py" />
+    <option name="LAST_COMMIT_MESSAGE" value="Mudança minima no path, acho q é isso que não deixa ele ler  no auto-py" />
   </component>
 </project>

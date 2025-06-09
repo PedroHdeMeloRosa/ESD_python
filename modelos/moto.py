@@ -105,7 +105,7 @@ class MotoEstatisticas:
         # 1. Histograma de Preços (ax1_hist_preco)
         ax1_hist_preco.hist(precos_np, bins=20, color='skyblue', edgecolor='black', alpha=0.7)
         ax1_hist_preco.set_title('Distribuição de Preços', fontsize=15)
-        ax1_hist_preco.set_xlabel('Preço (R$)', fontsize=12)
+        ax1_hist_preco.set_xlabel('Preço (₹)', fontsize=12)
         ax1_hist_preco.set_ylabel('Frequência', fontsize=12)
         ax1_hist_preco.tick_params(axis='x', rotation=20, labelsize=10)
         ax1_hist_preco.yaxis.set_major_formatter(mticker.FormatStrFormatter('%d'))
@@ -123,8 +123,8 @@ class MotoEstatisticas:
         scatter = ax3_preco_revenda.scatter(precos_np, revendas_np, c=anos_np, cmap='viridis', alpha=0.6,
                                             edgecolors='w', linewidth=0.5, s=50)
         ax3_preco_revenda.set_title('Relação Preço Original vs. Valor de Revenda', fontsize=16)
-        ax3_preco_revenda.set_xlabel('Preço Original (R$)', fontsize=13)
-        ax3_preco_revenda.set_ylabel('Valor de Revenda (R$)', fontsize=13)
+        ax3_preco_revenda.set_xlabel('Preço Original (₹)', fontsize=13)
+        ax3_preco_revenda.set_ylabel('Valor de Revenda (₹)', fontsize=13)
         ax3_preco_revenda.tick_params(labelsize=11)
         min_val_disp = 0;
         max_val_disp = 100000
@@ -154,7 +154,7 @@ class MotoEstatisticas:
             for patch, color in zip(bp['boxes'], colors_boxplot):
                 patch.set_facecolor(color)
             ax4_boxplot_preco_revenda.set_title('Distribuição: Preços vs. Revendas', fontsize=15)
-            ax4_boxplot_preco_revenda.set_ylabel('Valor (R$)', fontsize=12)
+            ax4_boxplot_preco_revenda.set_ylabel('Valor (₹)', fontsize=12)
             ax4_boxplot_preco_revenda.tick_params(axis='y', labelsize=10)
             ax4_boxplot_preco_revenda.tick_params(axis='x', labelsize=11)
             ax4_boxplot_preco_revenda.grid(True, axis='y', linestyle=':', alpha=0.7)
@@ -236,7 +236,7 @@ class MotoEstatisticas:
             axp.plot(ap_p, vp_p, 'r--', label=f'Tendência Preços\ny={c_p[0]:.2f}x + {c_p[1]:.0f}')
             axp.set_title('Preços Médios', fontsize=14);
             axp.set_xlabel('Ano', fontsize=12);
-            axp.set_ylabel('Preço (R$)', fontsize=12)
+            axp.set_ylabel('Preço (₹)', fontsize=12)
             axp.legend();
             axp.grid(True, ls=':', alpha=0.7);
             axp.xaxis.set_major_locator(mticker.MaxNLocator(integer=True))
@@ -245,7 +245,7 @@ class MotoEstatisticas:
             axr.plot(ap_r, vp_r, 'm--', label=f'Tendência Revendas\ny={c_r[0]:.2f}x + {c_r[1]:.0f}')
             axr.set_title('Valores Revenda', fontsize=14);
             axr.set_xlabel('Ano', fontsize=12);
-            axr.set_ylabel('Revenda (R$)', fontsize=12)
+            axr.set_ylabel('Revenda (₹)', fontsize=12)
             axr.legend();
             axr.grid(True, ls=':', alpha=0.7);
             axr.xaxis.set_major_locator(mticker.MaxNLocator(integer=True))

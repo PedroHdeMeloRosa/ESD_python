@@ -248,7 +248,7 @@ class AVLTree:
     def exibir(self) -> None:
         if not self.root: print("Árvore AVL vazia!"); return
         print(f"\n{'=' * 70}\n=== ÁRVORE AVL (Elementos: {self._count}) ===")
-        print(f"{'Marca':<15}{'Modelo':<20}{'Preço (R$)':<12}{'Revenda (R$)':<15}{'Ano':<6}\n{'-' * 70}")
+        print(f"{'Marca':<15}{'Modelo':<20}{'Preço (₹)':<12}{'Revenda (₹)':<15}{'Ano':<6}\n{'-' * 70}")
         self._displayed_count = 0
         self._exibir_em_ordem(self.root)
         if self._count > self._displayed_count:

@@ -102,7 +102,7 @@ class HashTable:
         print(
             f"Buckets Ocupados c/ Colisão: {stats['num_buckets_com_colisao']}/{stats['num_buckets_ocupados']} ({stats['percent_buckets_com_colisao_de_ocupados']:.2f}%) | Max Bucket: {stats['max_comprimento_bucket']}")
         print(f"{'-' * 80}")
-        print(f"{'Marca':<15}{'Modelo':<25}{'Preço (R$)':<12}{'Revenda (R$)':<15}{'Ano':<6}")
+        print(f"{'Marca':<15}{'Modelo':<25}{'Preço (₹)':<12}{'Revenda (₹)':<15}{'Ano':<6}")
         print(f"{'-' * 80}")
 
         count_displayed = 0

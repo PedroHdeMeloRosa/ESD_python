@@ -17,12 +17,12 @@ def exibir_estatisticas_texto(dataset: List[Moto]):
     estatisticas = MotoEstatisticas.calcular_estatisticas(dataset)
     print(f"Total de Motos Analisadas: {len(dataset)}")
 
-    print("\nPreços (R$):")
+    print("\nPreços (₹):")
     print(f"  Média: {estatisticas['preco']['media']:.2f}")
     print(f"  Mediana: {estatisticas['preco']['mediana']:.2f}")
     print(f"  Desvio Padrão: {estatisticas['preco']['desvio_padrao']:.2f}")
 
-    print("\nValores de Revenda (R$):")
+    print("\nValores de Revenda (₹):")
     print(f"  Média: {estatisticas['revenda']['media']:.2f}")
     print(f"  Mediana: {estatisticas['revenda']['mediana']:.2f}")
 
@@ -208,7 +208,7 @@ def submenu_filtrar_ordenar(dataset: List[Moto]):
         print("\nNenhuma moto encontrada com os critérios especificados.")
     else:
         print("\n" + "=" * 80)
-        print(f"{'Marca':<15}{'Modelo':<25}{'Preço (R$)':<12}{'Revenda (R$)':<15}{'Ano':<6}{'Deprec.%':<10}")
+        print(f"{'Marca':<15}{'Modelo':<25}{'Preço (₹)':<12}{'Revenda (₹)':<15}{'Ano':<6}{'Deprec.%':<10}")
         print("-" * 80)
         for i, m in enumerate(dados_para_exibir):
             if i >= 50:

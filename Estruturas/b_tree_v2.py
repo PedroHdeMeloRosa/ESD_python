@@ -299,7 +299,7 @@ class BTreeV2:
             print("Árvore B (v2) vazia!")
             return
         print(f"\n{'=' * 70}\n=== ÁRVORE B (v2) (t={self.t}, Elementos: {self._count}) ===")
-        print(f"{'Marca':<15}{'Modelo':<20}{'Preço':<12}{'Revenda':<15}{'Ano':<6}\n{'-' * 70}")
+        print(f"{'Marca':<15}{'Modelo':<20}{'Preço (₹)':<12}{'Revenda':<15}{'Ano':<6}\n{'-' * 70}")
         motos_ex: List[Moto] = []
         self._traverse_recursive_for_display(self.root, motos_ex, 50)
         for m in motos_ex:

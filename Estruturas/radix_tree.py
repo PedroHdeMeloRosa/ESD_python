@@ -184,7 +184,7 @@ class RadixTree:
 
     def exibir(self) -> None:
         print(f"\n{'=' * 70}\n=== RADIX TREE (Objetos Moto: {self._count}) ===")
-        print(f"{'Marca':<15}{'Modelo':<20}{'Preço':<12}{'Revenda':<15}{'Ano':<6}\n{'-' * 70}")
+        print(f"{'Marca':<15}{'Modelo':<20}{'Preço (₹)':<12}{'Revenda (₹)':<15}{'Ano':<6}\n{'-' * 70}")
         self._displayed_count_radix = 0
         self._exibir_recursive_radix(self.raiz, "")  # Passa prefixo acumulado vazio para raiz
         if self._count > self._displayed_count_radix:

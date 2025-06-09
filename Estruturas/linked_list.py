@@ -97,7 +97,7 @@ class LinkedList:
               (f", Capacidade M1: {self.max_elements_M1}" if self.max_elements_M1 is not None else "") +
               (f", Capacidade M2 (LRU): {self.capacidade_maxima_M2}" if self.capacidade_maxima_M2 is not None else "") +
               f") ===")
-        print(f"{'Marca':<15}{'Modelo':<20}{'Preço (R$)':<12}{'Revenda (R$)':<15}{'Ano':<6}\n{'-' * 70}")
+        print(f"{'Marca':<15}{'Modelo':<20}{'Preço (₹)':<12}{'Revenda (₹)':<15}{'Ano':<6}\n{'-' * 70}")
         atual = self.head;
         count_disp = 0
         while atual and count_disp < 50:

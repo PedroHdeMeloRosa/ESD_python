@@ -99,13 +99,13 @@ def obter_dados_moto(para_busca: bool = False) -> Moto:
 
     if not para_busca:
         # Usando min_val e max_val para validação mais robusta
-        preco = validar_float("Preço (R$): ", min_val=0.0)
-        revenda = validar_float("Valor de Revenda (R$): ", min_val=0.0)
+        preco = validar_float("Preço (₹): ", min_val=0.0)
+        revenda = validar_float("Valor de Revenda (₹): ", min_val=0.0)
         ano = validar_int("Ano de Fabricação: ", min_val=1900, max_val=datetime.date.today().year + 1)
     else:
         print("Digite os valores exatos para busca nos respectivos campos.")
-        preco = validar_float("Preço (R$): ", permitir_negativo_um=True)
-        revenda = validar_float("Valor de Revenda (R$): ", permitir_negativo_um=True)
+        preco = validar_float("Preço (₹): ", permitir_negativo_um=True)
+        revenda = validar_float("Valor de Revenda (₹): ", permitir_negativo_um=True)
         # Definindo um range seguro para anos na busca, mesmo com -1
         ano = validar_int("Ano de Fabricação: ", permitir_negativo_um=True)
 
