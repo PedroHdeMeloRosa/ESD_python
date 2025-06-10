@@ -1,6 +1,6 @@
 # ESD_python
 
-O arquivo executavel se encontra no link abaixo em um arquivo publico no Google Drive:
+O arquivo executavel se encontra no link abaixo em uma pasta publica no Google Drive:
 
 https://drive.google.com/drive/folders/1kWWQtPWyt7zwX8SJSYLznQipDTONZ2-0?usp=sharing
 
